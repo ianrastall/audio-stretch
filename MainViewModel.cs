@@ -36,11 +36,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string currentPositionText = "0:00";
     [ObservableProperty] private string totalDurationText = "0:00";
 
+    [ObservableProperty] private string dependencyStatusText = string.Empty;
+    [ObservableProperty] private bool toolsMissing;
+    [ObservableProperty] private bool isInstalling;
+    [ObservableProperty] private string installStatus = string.Empty;
+
+    // Tempo is expressed as a percentage change from the original speed:
+    // 0 = unchanged, negative = slower, positive = faster.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TempoDisplay))]
-    private double tempoPercent = 100.0;
+    [NotifyPropertyChangedFor(nameof(TempoMultiplier))]
+    private double tempoChange;
 
-    public string TempoDisplay => $"{TempoPercent:0} %  ({TempoPercent / 100:0.000}x)";
+    public double TempoMultiplier => 1.0 + TempoChange / 100.0;
+
+    public string TempoDisplay => $"{TempoChange:+0;-0;0} %  ({TempoMultiplier:0.000}x)";
 
     public ObservableCollection<string> LogLines { get; } = [];
 
@@ -51,6 +61,48 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _posTimer.Tick += (_, _) => UpdatePosition();
         _posTimer.Start();
+
+        CheckTools();
+    }
+
+    private void CheckTools()
+    {
+        var ffmpeg  = ToolFinder.Find("ffmpeg");
+        var ffprobe = ToolFinder.Find("ffprobe");
+        var rb      = ToolFinder.Find("rubberband-r3");
+
+        ToolsMissing = ffmpeg is null || ffprobe is null || rb is null;
+
+        static string Mark(string? p) => p is null ? "not found" : "found";
+        DependencyStatusText =
+            $"ffmpeg: {Mark(ffmpeg)}     ffprobe: {Mark(ffprobe)}     rubberband-r3: {Mark(rb)}";
+    }
+
+    [RelayCommand]
+    private void RefreshTools() => CheckTools();
+
+    [RelayCommand]
+    private async Task InstallToolsAsync()
+    {
+        IsInstalling = true;
+        InstallStatus = "Starting…";
+        try
+        {
+            await DependencyInstaller.EnsureAsync(
+                log: msg => _uiDispatcher.Invoke(() => { LogLines.Add(msg); InstallStatus = msg; }),
+                progress: msg => _uiDispatcher.Invoke(() => InstallStatus = msg),
+                ct: CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            InstallStatus = $"Install failed: {ex.Message}";
+            Append($"ERROR: Tool install failed: {ex.Message}");
+        }
+        finally
+        {
+            IsInstalling = false;
+            CheckTools();
+        }
     }
 
     private void UpdatePosition()
@@ -149,7 +201,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void ResetTempo() => TempoPercent = 100;
+    private void ResetTempo() => TempoChange = 0;
 
     [RelayCommand]
     private void CopyLog()
@@ -221,7 +273,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (IsLossyInput)
             Append("WARNING: Lossy input — re-encoding degrades quality further.");
         Append($"Output: {OutputPath}");
-        Append($"Tempo:  {TempoPercent:0} % ({TempoPercent / 100:0.000}x)");
+        Append($"Tempo:  {TempoChange:+0;-0;0} % ({TempoMultiplier:0.000}x)");
         Append("Pitch:  unchanged");
         Append(string.Empty);
 
@@ -314,7 +366,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private string BuildRubberbandArgs(string input, string output, AudioConverter.ProbeResult probe)
     {
-        var tempo = (TempoPercent / 100).ToString("0.000", CultureInfo.InvariantCulture);
+        var tempo = TempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
         var args = $"--fine --ignore-clipping --tempo {tempo}";
         if (probe.Channels == 2)
             args += " --centre-focus";

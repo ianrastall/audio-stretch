@@ -18,6 +18,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="5"/>
             <RowDefinition Height="210"/>
@@ -28,8 +29,40 @@
             <TextBlock Text="AudioStretch" FontSize="20" FontWeight="Bold"/>
         </Border>
 
+        <!-- External tool dependencies -->
+        <Border Grid.Row="1" Background="{StaticResource PanelBg}" Padding="16,8"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="External tools" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource SubtleFg}"/>
+                    <TextBlock Text="{Binding DependencyStatusText}"
+                               FontFamily="Consolas" FontSize="12" Margin="0,2,0,0"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding InstallStatus}"
+                               FontFamily="Consolas" FontSize="11" Margin="0,2,0,0"
+                               Foreground="{StaticResource SubtleFg}" TextWrapping="Wrap"
+                               Visibility="{Binding IsInstalling, Converter={StaticResource BoolVis}}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Re-check" Command="{Binding RefreshToolsCommand}"
+                            Padding="10,4" Margin="0,0,6,0"
+                            IsEnabled="{Binding IsInstalling, Converter={StaticResource InvBool}}"/>
+                    <Button Content="Download &amp; install"
+                            Command="{Binding InstallToolsCommand}"
+                            Style="{StaticResource AccentButton}" Padding="12,4"
+                            Visibility="{Binding ToolsMissing, Converter={StaticResource BoolVis}}"
+                            IsEnabled="{Binding IsInstalling, Converter={StaticResource InvBool}}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- Controls -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="16,14,16,6">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="16,14,16,6">
             <StackPanel>
 
                 <!-- Input -->
@@ -110,8 +143,8 @@
                                FontFamily="Consolas" FontSize="12"
                                Foreground="{StaticResource SubtleFg}"/>
                 </Grid>
-                <Slider Value="{Binding TempoPercent}" Minimum="50" Maximum="200"
-                        TickFrequency="25" TickPlacement="BottomRight"
+                <Slider Value="{Binding TempoChange}" Minimum="-30" Maximum="30"
+                        TickFrequency="10" TickPlacement="BottomRight"
                         Margin="0,0,0,5"
                         IsEnabled="{Binding IsRunning, Converter={StaticResource InvBool}}"/>
                 <Button Content="Reset" HorizontalAlignment="Right" Padding="10,3"
@@ -131,11 +164,11 @@
         </ScrollViewer>
 
         <!-- Splitter -->
-        <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch"
+        <GridSplitter Grid.Row="3" HorizontalAlignment="Stretch"
                       Background="{StaticResource BorderBrush}"/>
 
         <!-- Log -->
-        <Grid Grid.Row="3" Background="#181818">
+        <Grid Grid.Row="4" Background="#181818">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>

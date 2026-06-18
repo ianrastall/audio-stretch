@@ -15,10 +15,11 @@ A lightweight, high-quality GUI focused on precise tempo adjustments, powered by
 ## Prerequisites & External Tools
 AudioStretch relies on three external command-line tools to function. These tools are kept external to keep the executable lightweight and allow for easy updates.
 
-You must place the following files in a `tools/` folder located right next to the `AudioStretch.exe` file (or have them available on your system PATH):
-- `ffmpeg.exe`
-- `ffprobe.exe`
-- `rubberband-r3.exe` (and its required `sndfile.dll`)
+The **External tools** bar at the top of the window shows whether each tool was found. If any are missing, click **Download & install** and AudioStretch will fetch them from their official sources and unpack them into the `tools/` folder for you:
+- `ffmpeg.exe` and `ffprobe.exe` — from the [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) release-essentials build linked by ffmpeg.org (~103 MB download; the two static binaries are ~100 MB each once unpacked).
+- `rubberband-r3.exe` (and its required `sndfile.dll`) — from the [Rubber Band](https://breakfastquay.com/rubberband/) command-line release.
+
+The app checks your system `PATH` first, so anything you already have installed won't be re-downloaded. To set the tools up manually instead, place those files in a `tools/` folder next to `AudioStretch.exe` (or anywhere on your `PATH`).
 
 ## Building from Source
 The application is a standard WPF C# project using .NET.
