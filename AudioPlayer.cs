@@ -25,11 +25,19 @@ internal sealed class AudioPlayer : IDisposable
 
     public void PlayPause()
     {
-        if (_out is null) return;
+        if (_out is null || _reader is null) return;
         if (_out.PlaybackState == PlaybackState.Playing)
+        {
             _out.Pause();
+        }
         else
+        {
+            // Reaching the end leaves the reader at TotalTime; without a rewind
+            // pressing Play would read zero bytes and stop again immediately.
+            if (_reader.CurrentTime >= _reader.TotalTime)
+                _reader.CurrentTime = TimeSpan.Zero;
             _out.Play();
+        }
     }
 
     public void Stop()

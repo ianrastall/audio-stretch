@@ -158,6 +158,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(InputPath) || string.IsNullOrWhiteSpace(OutputPath)) return;
 
+        if (SamePath(InputPath, OutputPath))
+        {
+            Append("ERROR: Output path cannot be the same as the input path.");
+            Append("The input is still open for preview, so it can't be overwritten in place.");
+            return;
+        }
+
         var ffmpeg    = ToolFinder.Find("ffmpeg");
         var ffprobe   = ToolFinder.Find("ffprobe");
         var rubberband = ToolFinder.Find("rubberband-r3");
@@ -223,7 +230,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             rb.Start();
             rb.BeginOutputReadLine();
             rb.BeginErrorReadLine();
-            await rb.WaitForExitAsync(ct);
+            await rb.WaitForExitOrKillAsync(ct);
 
             Append(string.Empty);
             Append(rb.ExitCode == 0 ? "Done." : $"rubberband exited with code {rb.ExitCode}.");
@@ -284,6 +291,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         t.TotalHours >= 1
             ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
             : $"{t.Minutes}:{t.Seconds:00}";
+
+    private static bool SamePath(string a, string b)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     private static string DeriveOutputPath(string inputPath)
     {

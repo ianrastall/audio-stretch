@@ -36,7 +36,7 @@ internal static class AudioConverter
         p.Start();
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
-        await p.WaitForExitAsync(ct);
+        await p.WaitForExitOrKillAsync(ct);
 
         if (p.ExitCode != 0) return null;
 
@@ -103,7 +103,7 @@ internal static class AudioConverter
         p.Start();
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
-        await p.WaitForExitAsync(ct);
+        await p.WaitForExitOrKillAsync(ct);
 
         return p.ExitCode == 0;
     }
