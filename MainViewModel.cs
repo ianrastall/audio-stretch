@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -49,10 +50,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private double tempoChange;
 
     public double TempoMultiplier => 1.0 + TempoChange / 100.0;
-
     public string TempoDisplay => $"{TempoChange:+0;-0;0} %  ({TempoMultiplier:0.000}x)";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PitchDisplay))]
+    private double pitchShift;
+    
+    public string PitchDisplay => PitchShift == 0 ? "0 semitones" : $"{PitchShift:+0.0;-0.0;0} semitones";
+
+    [ObservableProperty] private bool enableFormant;
+    [ObservableProperty] private bool enableCentreFocus = true;
+
     public ObservableCollection<string> LogLines { get; } = [];
+
+    [ObservableProperty] private double overallProgress;
+    [ObservableProperty] private string mainStatus = string.Empty;
+    [ObservableProperty] private string subStatus = string.Empty;
+    [ObservableProperty] private bool isProgressIndeterminate;
+    [ObservableProperty] private bool showRawLog;
 
     public bool IsScrubbing { get; set; }
 
@@ -204,6 +219,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ResetTempo() => TempoChange = 0;
 
     [RelayCommand]
+    private void ResetPitch() => PitchShift = 0;
+
+    [RelayCommand]
     private void CopyLog()
     {
         Clipboard.SetText(BuildLogText(includeHeader: false));
@@ -267,6 +285,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         IsRunning = true;
+        OverallProgress = 0;
+        MainStatus = "Initializing…";
+        SubStatus = string.Empty;
+        IsProgressIndeterminate = true;
         LogLines.Clear();
 
         Append($"Input:  {InputPath}");
@@ -274,8 +296,33 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Append("WARNING: Lossy input — re-encoding degrades quality further.");
         Append($"Output: {OutputPath}");
         Append($"Tempo:  {TempoChange:+0;-0;0} % ({TempoMultiplier:0.000}x)");
-        Append("Pitch:  unchanged");
+        var pitchStr = PitchShift == 0 ? "unchanged" : $"{PitchShift:+0.0;-0.0;0} semitones";
+        if (EnableFormant && PitchShift != 0) pitchStr += " (Formant preserved)";
+        Append($"Pitch:  {pitchStr}");
+        Append($"Centre Focus: {(EnableCentreFocus ? "Enabled" : "Disabled")}");
         Append(string.Empty);
+        
+        var sw = Stopwatch.StartNew();
+        
+        void UpdateStats(double pct)
+        {
+            _uiDispatcher.InvokeAsync(() => 
+            {
+                OverallProgress = pct * 100;
+                if (pct > 0)
+                {
+                    var elapsed = sw.Elapsed;
+                    var totalEst = TimeSpan.FromSeconds(elapsed.TotalSeconds / pct);
+                    var remaining = totalEst - elapsed;
+                    if (remaining.TotalSeconds < 0) remaining = TimeSpan.Zero;
+                    SubStatus = $"{OverallProgress:0}% • Elapsed: {FormatTime(elapsed)} • ETA: {FormatTime(remaining)}";
+                }
+                else
+                {
+                    SubStatus = $"0% • Elapsed: {FormatTime(sw.Elapsed)}";
+                }
+            });
+        }
 
         // Decode goes to a temp WAV; rubberband writes to a temp file beside the
         // final output so a failed or cancelled run never leaves a partial file
@@ -288,6 +335,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
+            MainStatus = "Probing input…";
+            IsProgressIndeterminate = true;
             Append("Probing input…");
             var probe = await AudioConverter.ProbeAsync(InputPath, ffprobe!, Append, ct, TrackProcess);
             if (probe is null) { Append("ERROR: Could not probe input."); return; }
@@ -297,15 +346,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 Append($"  Downsampling {probe.SampleRate} → 192000 Hz");
             Append(string.Empty);
 
+            MainStatus = "Decoding to WAV…";
+            IsProgressIndeterminate = false;
             Append("Decoding to WAV…");
-            var ok = await AudioConverter.ConvertToWavAsync(InputPath, tempWav, probe, ffmpeg!, Append, ct, TrackProcess);
+            var ok = await AudioConverter.ConvertToWavAsync(InputPath, tempWav, probe, TotalDurationSeconds, ffmpeg!, Append, 
+                pct => UpdateStats(pct * 0.20), ct, TrackProcess);
             if (!ok) { Append("ERROR: FFmpeg decode failed."); return; }
             Append("Decode done.");
             Append(string.Empty);
 
+            MainStatus = "Applying time-stretch…";
             var args = BuildRubberbandArgs(tempWav, outputTmp, probe);
             Append($"> rubberband-r3 {args}");
             Append(string.Empty);
+
+            var rbRegex = new Regex(@"(\d+)%", RegexOptions.Compiled);
+            int currentPass = 1;
 
             using var rb = new Process
             {
@@ -317,7 +373,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     CreateNoWindow = true
                 }
             };
-            rb.OutputDataReceived += (_, e) => { if (e.Data is not null) Append(e.Data); };
+            rb.OutputDataReceived += (_, e) => 
+            { 
+                if (e.Data is null) return;
+                Append(e.Data); 
+                if (e.Data.Contains("Pass 1:")) { currentPass = 1; _uiDispatcher.InvokeAsync(() => MainStatus = "Applying time-stretch (Pass 1)…"); }
+                else if (e.Data.Contains("Pass 2:")) { currentPass = 2; _uiDispatcher.InvokeAsync(() => MainStatus = "Applying time-stretch (Pass 2)…"); }
+                
+                var matches = rbRegex.Matches(e.Data);
+                if (matches.Count > 0)
+                {
+                    if (int.TryParse(matches[^1].Groups[1].Value, out var p))
+                    {
+                        double stretchPct = (currentPass == 1) ? (p / 200.0) : (0.5 + (p / 200.0));
+                        UpdateStats(0.20 + (stretchPct * 0.80));
+                    }
+                }
+            };
             rb.ErrorDataReceived  += (_, e) => { if (e.Data is not null) Append(e.Data); };
             rb.Start();
             TrackProcess(rb);
@@ -329,24 +401,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (rb.ExitCode == 0)
             {
                 File.Move(outputTmp, OutputPath, overwrite: true);
+                MainStatus = "Done.";
+                OverallProgress = 100;
+                SubStatus = $"Elapsed: {FormatTime(sw.Elapsed)}";
                 Append($"Done. Wrote {OutputPath}");
             }
             else
             {
+                MainStatus = "Failed.";
                 Append($"rubberband exited with code {rb.ExitCode}. Output not written.");
             }
         }
         catch (OperationCanceledException)
         {
+            MainStatus = "Cancelled.";
             Append("Cancelled.");
         }
         catch (Exception ex)
         {
+            MainStatus = "Error occurred.";
             Append($"ERROR: {ex.Message}");
         }
         finally
         {
+            sw.Stop();
             IsRunning = false;
+            IsProgressIndeterminate = false;
             _activeProcess = null;
             CleanupTempFiles();
         }
@@ -368,8 +448,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var tempo = TempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
         var args = $"--fine --ignore-clipping --tempo {tempo}";
-        if (probe.Channels == 2)
+        
+        if (PitchShift != 0)
+        {
+            var pitch = PitchShift.ToString("0.00", CultureInfo.InvariantCulture);
+            args += $" --pitch {pitch}";
+            if (EnableFormant)
+                args += " --formant";
+        }
+        
+        if (EnableCentreFocus && probe.Channels == 2)
             args += " --centre-focus";
+            
         args += $" \"{input}\" \"{output}\"";
         return args;
     }

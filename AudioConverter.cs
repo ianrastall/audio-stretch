@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace AudioStretch;
 
@@ -76,8 +77,8 @@ internal static class AudioConverter
     }
 
     public static async Task<bool> ConvertToWavAsync(
-        string input, string output, ProbeResult probe,
-        string ffmpeg, Action<string> log, CancellationToken ct,
+        string input, string output, ProbeResult probe, double totalDurationSeconds,
+        string ffmpeg, Action<string> log, Action<double> progress, CancellationToken ct,
         Action<Process>? onStarted = null)
     {
         var targetSr = Math.Min(probe.SampleRate, 192000);
@@ -91,6 +92,8 @@ internal static class AudioConverter
         var args = $"-i \"{input}\" -ar {targetSr} -c:a {pcmCodec} -y \"{output}\"";
         log($"ffmpeg {args}");
 
+        var timeRegex = new Regex(@"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})", RegexOptions.Compiled);
+
         using var p = new Process
         {
             StartInfo = new ProcessStartInfo(ffmpeg, args)
@@ -102,7 +105,21 @@ internal static class AudioConverter
             }
         };
         p.OutputDataReceived += (_, e) => { if (e.Data is not null) log(e.Data); };
-        p.ErrorDataReceived += (_, e) => { if (e.Data is not null) log(e.Data); };
+        p.ErrorDataReceived += (_, e) => 
+        { 
+            if (e.Data is null) return;
+            log(e.Data); 
+            
+            var match = timeRegex.Match(e.Data);
+            if (match.Success && totalDurationSeconds > 0)
+            {
+                if (TimeSpan.TryParse(match.Groups[0].Value.Substring(5), out var ts))
+                {
+                    double pct = ts.TotalSeconds / totalDurationSeconds;
+                    progress(Math.Clamp(pct, 0, 1));
+                }
+            }
+        };
         p.Start();
         onStarted?.Invoke(p);
         p.BeginOutputReadLine();
