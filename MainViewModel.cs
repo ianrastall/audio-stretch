@@ -18,6 +18,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _uiDispatcher = Dispatcher.CurrentDispatcher;
     private bool _seekingFromTimer;
 
+    private Process? _activeProcess;
+    private string? _decodeTemp;
+    private string? _outputTemp;
+    private bool _outputCustomized;
+    private bool _suppressOutputTracking;
+
     [ObservableProperty] private string inputPath = string.Empty;
     [ObservableProperty] private string outputPath = string.Empty;
     [ObservableProperty] private bool isLossyInput;
@@ -73,6 +79,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void SeekTo(double seconds) => _player.Seek(TimeSpan.FromSeconds(seconds));
 
+    partial void OnOutputPathChanged(string value)
+    {
+        // Any change the app didn't make itself counts as the user choosing
+        // their own output path.
+        if (!_suppressOutputTracking)
+            _outputCustomized = true;
+    }
+
     [RelayCommand]
     private void PickInput()
     {
@@ -85,8 +99,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         InputPath = dlg.FileName;
         IsLossyInput = AudioConverter.IsLossy(dlg.FileName);
 
-        if (string.IsNullOrEmpty(OutputPath))
+        // Re-point the output at the new input unless the user picked or typed
+        // their own output path; otherwise a second input keeps targeting the
+        // previous file.
+        if (!_outputCustomized)
+        {
+            _suppressOutputTracking = true;
             OutputPath = DeriveOutputPath(dlg.FileName);
+            _suppressOutputTracking = false;
+        }
 
         try
         {
@@ -181,6 +202,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (File.Exists(OutputPath))
+        {
+            var answer = MessageBox.Show(
+                $"Output file already exists:\n\n{OutputPath}\n\nOverwrite it?",
+                "AudioStretch", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes)
+            {
+                Append("Cancelled: output file already exists.");
+                return;
+            }
+        }
+
         IsRunning = true;
         LogLines.Clear();
 
@@ -192,12 +225,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Append("Pitch:  unchanged");
         Append(string.Empty);
 
+        // Decode goes to a temp WAV; rubberband writes to a temp file beside the
+        // final output so a failed or cancelled run never leaves a partial file
+        // at OutputPath. The final file appears only via an atomic move on success.
         var tempWav = Path.Combine(Path.GetTempPath(), $"as_{Path.GetRandomFileName()}.wav");
+        var outDir = Path.GetDirectoryName(Path.GetFullPath(OutputPath)) ?? Path.GetTempPath();
+        var outputTmp = Path.Combine(outDir, $"~as_{Guid.NewGuid():N}.tmp.wav");
+        _decodeTemp = tempWav;
+        _outputTemp = outputTmp;
 
         try
         {
             Append("Probing input…");
-            var probe = await AudioConverter.ProbeAsync(InputPath, ffprobe!, Append, ct);
+            var probe = await AudioConverter.ProbeAsync(InputPath, ffprobe!, Append, ct, TrackProcess);
             if (probe is null) { Append("ERROR: Could not probe input."); return; }
 
             Append($"  {probe.SampleRate} Hz · {probe.BitDepth}-bit · {probe.Channels} ch · {probe.CodecName}");
@@ -206,12 +246,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Append(string.Empty);
 
             Append("Decoding to WAV…");
-            var ok = await AudioConverter.ConvertToWavAsync(InputPath, tempWav, probe, ffmpeg!, Append, ct);
+            var ok = await AudioConverter.ConvertToWavAsync(InputPath, tempWav, probe, ffmpeg!, Append, ct, TrackProcess);
             if (!ok) { Append("ERROR: FFmpeg decode failed."); return; }
             Append("Decode done.");
             Append(string.Empty);
 
-            var args = BuildRubberbandArgs(tempWav, OutputPath, probe);
+            var args = BuildRubberbandArgs(tempWav, outputTmp, probe);
             Append($"> rubberband-r3 {args}");
             Append(string.Empty);
 
@@ -228,12 +268,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             rb.OutputDataReceived += (_, e) => { if (e.Data is not null) Append(e.Data); };
             rb.ErrorDataReceived  += (_, e) => { if (e.Data is not null) Append(e.Data); };
             rb.Start();
+            TrackProcess(rb);
             rb.BeginOutputReadLine();
             rb.BeginErrorReadLine();
             await rb.WaitForExitOrKillAsync(ct);
 
             Append(string.Empty);
-            Append(rb.ExitCode == 0 ? "Done." : $"rubberband exited with code {rb.ExitCode}.");
+            if (rb.ExitCode == 0)
+            {
+                File.Move(outputTmp, OutputPath, overwrite: true);
+                Append($"Done. Wrote {OutputPath}");
+            }
+            else
+            {
+                Append($"rubberband exited with code {rb.ExitCode}. Output not written.");
+            }
         }
         catch (OperationCanceledException)
         {
@@ -246,8 +295,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         finally
         {
             IsRunning = false;
-            try { if (File.Exists(tempWav)) File.Delete(tempWav); } catch { }
+            _activeProcess = null;
+            CleanupTempFiles();
         }
+    }
+
+    private void TrackProcess(Process p) => _activeProcess = p;
+
+    private void CleanupTempFiles()
+    {
+        foreach (var f in new[] { _decodeTemp, _outputTemp })
+        {
+            try { if (f is not null && File.Exists(f)) File.Delete(f); } catch { }
+        }
+        _decodeTemp = null;
+        _outputTemp = null;
     }
 
     private string BuildRubberbandArgs(string input, string output, AudioConverter.ProbeResult probe)
@@ -315,6 +377,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _posTimer.Stop();
+
+        // Closing the window mid-run must take ffmpeg/rubberband down with it,
+        // otherwise the child tree is orphaned and keeps running after exit.
+        try
+        {
+            var p = _activeProcess;
+            if (p is not null && !p.HasExited)
+            {
+                p.Kill(entireProcessTree: true);
+                p.WaitForExit(2000);
+            }
+        }
+        catch { /* already exited or no longer accessible */ }
+
+        CleanupTempFiles();
         _player.Dispose();
     }
 }

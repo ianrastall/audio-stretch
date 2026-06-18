@@ -16,7 +16,8 @@ internal static class AudioConverter
     public record ProbeResult(int SampleRate, int BitDepth, int Channels, string CodecName);
 
     public static async Task<ProbeResult?> ProbeAsync(
-        string path, string ffprobe, Action<string> log, CancellationToken ct)
+        string path, string ffprobe, Action<string> log, CancellationToken ct,
+        Action<Process>? onStarted = null)
     {
         var args = $"-v quiet -print_format json -show_streams \"{path}\"";
         var sb = new StringBuilder();
@@ -34,6 +35,7 @@ internal static class AudioConverter
         p.OutputDataReceived += (_, e) => { if (e.Data is not null) sb.AppendLine(e.Data); };
         p.ErrorDataReceived += (_, e) => { if (e.Data is not null) log(e.Data); };
         p.Start();
+        onStarted?.Invoke(p);
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
         await p.WaitForExitOrKillAsync(ct);
@@ -75,7 +77,8 @@ internal static class AudioConverter
 
     public static async Task<bool> ConvertToWavAsync(
         string input, string output, ProbeResult probe,
-        string ffmpeg, Action<string> log, CancellationToken ct)
+        string ffmpeg, Action<string> log, CancellationToken ct,
+        Action<Process>? onStarted = null)
     {
         var targetSr = Math.Min(probe.SampleRate, 192000);
         var pcmCodec = probe.BitDepth switch
@@ -101,6 +104,7 @@ internal static class AudioConverter
         p.OutputDataReceived += (_, e) => { if (e.Data is not null) log(e.Data); };
         p.ErrorDataReceived += (_, e) => { if (e.Data is not null) log(e.Data); };
         p.Start();
+        onStarted?.Invoke(p);
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
         await p.WaitForExitOrKillAsync(ct);

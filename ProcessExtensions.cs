@@ -18,7 +18,16 @@ internal static class ProcessExtensions
         }
         catch (OperationCanceledException)
         {
-            try { if (!p.HasExited) p.Kill(entireProcessTree: true); }
+            try
+            {
+                if (!p.HasExited)
+                {
+                    p.Kill(entireProcessTree: true);
+                    // Wait for the tree to actually die so its file locks are
+                    // released before the caller cleans up temp files.
+                    await p.WaitForExitAsync(CancellationToken.None);
+                }
+            }
             catch { /* already exited or no longer accessible */ }
             throw;
         }
