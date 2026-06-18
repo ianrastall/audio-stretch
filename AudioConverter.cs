@@ -48,15 +48,21 @@ internal static class AudioConverter
                 if (!stream.TryGetProperty("codec_type", out var t) || t.GetString() != "audio")
                     continue;
 
-                var sr = stream.TryGetProperty("sample_rate", out var srp) &&
-                         int.TryParse(srp.GetString(), out var sn) ? sn : 44100;
+                int GetInt(JsonElement e) =>
+                    e.ValueKind == JsonValueKind.Number ? e.GetInt32() :
+                    e.ValueKind == JsonValueKind.String && int.TryParse(e.GetString(), out var v) ? v : 0;
 
-                var bd = stream.TryGetProperty("bits_per_sample", out var bdp) ? bdp.GetInt32() : 0;
+                var sr = stream.TryGetProperty("sample_rate", out var srp) ? GetInt(srp) : 44100;
+                if (sr == 0) sr = 44100;
+
+                var bd = stream.TryGetProperty("bits_per_sample", out var bdp) ? GetInt(bdp) : 0;
                 if (bd == 0 && stream.TryGetProperty("bits_per_raw_sample", out var brsp))
-                    bd = brsp.GetInt32();
+                    bd = GetInt(brsp);
                 if (bd == 0) bd = 16;
 
-                var ch = stream.TryGetProperty("channels", out var chp) ? chp.GetInt32() : 2;
+                var ch = stream.TryGetProperty("channels", out var chp) ? GetInt(chp) : 2;
+                if (ch == 0) ch = 2;
+
                 var codec = stream.TryGetProperty("codec_name", out var cnp) ? cnp.GetString() ?? "" : "";
 
                 return new ProbeResult(sr, bd, ch, codec);
