@@ -29,7 +29,7 @@ New code lives in core/, cli/, proto/, src/, build/ and tests/. The old root WPF
 
 The Jupiter implementation descends from original WPF head a973c43 and continues the same repository history. The installed replacement is integrated into master and jupiter; legacy-wpf is only a historical branch. Do not rewrite history or create a replacement repository. No public release is authorized before local evaluation is complete.
 
-Installed GUI export/playback, shared theme changes, settings preservation through update/uninstall/reinstall, Start registration and final installed-file hashes were verified. The final Settings-close guard was compiled and installed; its exact close sequence remains a manual regression check after desktop input/minimization interrupted the last automation pass. The app was left running, minimized, for the owner. See docs/verification.md for the distinction between observed passes and that remaining check.
+Installed GUI export/playback, shared theme changes, settings preservation through update/uninstall/reinstall, Start registration and final installed-file hashes were verified. The final Settings-close guard was compiled and installed; its exact close sequence remains a manual regression check after desktop input/minimization interrupted the last automation pass. AudioStretch is available from Start for the owner. See docs/verification.md for the distinction between observed passes and that remaining check.
 
 ## Remaining limits
 
