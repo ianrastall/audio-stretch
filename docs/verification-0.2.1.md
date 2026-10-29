@@ -32,7 +32,11 @@ Public installation differs from local-only 0.2.0: audio tools download directly
 
 The release publishes an installer, SHA256SUMS.txt and a source snapshot containing the exact sibling Jupiter.UI source dependency used by the build. The original repository/history/URL remain intact. The old local-only 0.2.0 installer is excluded from public assets.
 
-A controlled external-helper check passed before publication: the self-contained helper ran from the user update cache, remained waiting while the controlled parent process was alive, installed 0.2.1 with exit code 0, preserved the settings hash and relaunched AudioStretch. `artifacts/helper-verification.json` records installed version 0.2.1.0 and success. Live published-release discovery/download is checked immediately after publication and recorded in the handoff.
+A controlled external-helper check passed before publication: the self-contained helper ran from the user update cache, remained waiting while the controlled parent process was alive, installed 0.2.1 with exit code 0, preserved the settings hash and relaunched AudioStretch. `artifacts/helper-verification.json` records installed version 0.2.1.0 and success.
+
+[Release v0.2.1](https://github.com/ianrastall/audio-stretch/releases/tag/v0.2.1) was published as the latest stable release at commit `5cb1b9465787863affb4474b2126d7980fa0887c`. Uploaded installer and source ZIP digests match SHA256SUMS.txt. The complete 99-file source ZIP layout and a locked restore from its extracted sibling project directories pass.
+
+The live update service discovered that public release as an upgrade from 0.2.0 and validated the installer cache against its published SHA-256. It read the official upstream Rubber Band version as 4.0.0 and downloaded/installed the catalog's official Rubber Band and FFmpeg archives into this account's managed tool directory, preserving notices. These results are in `artifacts/live-update-verification.json`. The application remains installed at 0.2.1.0; existing settings were preserved.
 
 ## Limits
 

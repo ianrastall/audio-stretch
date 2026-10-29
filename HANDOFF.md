@@ -1,6 +1,6 @@
 # AudioStretch handoff
 
-29 October 2026. Version 0.2.1 release work.
+29 October 2026. Version 0.2.1 is published and installed locally.
 
 ## Current direction
 
@@ -24,7 +24,9 @@ Run .\build.ps1 -Verify for the installer plus Rust, managed/native, updater and
 
 Run build/package-source.ps1 after committing release source to produce a source ZIP with audio-stretch/ and the exact tracked working snapshot of sibling jupiter-ui/. It records shared file hashes and does not change/commit unrelated Jupiter.UI modifications. GitHub's automatic repository-only source archive lacks that separate dependency; publish the complete source ZIP too.
 
-All automated checks described in docs/verification-0.2.1.md pass, including official package setup and native processing through managed tool folders. The release assets are installer, source ZIP and SHA256SUMS.txt. Record publication URL and live updater/helper results after actual publication; do not claim those final steps before they occur.
+All automated checks described in docs/verification-0.2.1.md pass, including official package setup and native processing through managed tool folders. The public latest stable release is https://github.com/ianrastall/audio-stretch/releases/tag/v0.2.1 at source commit 5cb1b9465787863affb4474b2126d7980fa0887c, with installer, complete source ZIP and SHA256SUMS.txt. Remote asset digests match local files; source ZIP layout/locked restore pass.
+
+The actual live update client discovers 0.2.1 as an upgrade from 0.2.0, validates its installer cache against the published digest, reads the official Rubber Band Windows release, and installs the official catalog packages into the account's managed tool folder. The external self-contained helper was tested outside the install directory with a controlled parent process: it waited, installed, preserved settings and relaunched the app. Installed version is 0.2.1.0. See artifacts/helper-verification.json and artifacts/live-update-verification.json for local raw evidence. No automated mouse/keyboard activity was needed for these release checks.
 
 ## Data and limits
 
