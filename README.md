@@ -1,5 +1,7 @@
 # AudioStretch
 
+The Jupiter rebuild is being developed on the `jupiter` branch of this same repository. It will use fresh application code and retain AudioStretch's repository identity. The existing WPF implementation remains available on `master` and `legacy-wpf`. See [the rebuild brief](docs/jupiter-project-brief.md), [legacy audit](docs/legacy-audit.md) and [handoff](HANDOFF.md). The rebuild is currently at discovery/planning stage; the documentation below describes the existing WPF application.
+
 A lightweight, high-quality GUI focused on precise tempo adjustments, powered by `rubberband-r3` for best-in-class time-stretching and `FFmpeg` / `ffprobe` for broad audio format support.
 
 ## Disclaimer: AI-Generated Codebase
