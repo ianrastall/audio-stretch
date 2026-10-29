@@ -2,7 +2,9 @@
 
 ## Current 0.3.0 implementation
 
-29 October 2026. The complete R3 plan is implemented, tested and installed locally as 0.3.0. Release target: v0.3.0 in the same repository. The historical 0.2.1 notes below are superseded where they describe planned controls.
+29 October 2026. The complete R3 plan is implemented, tested, installed locally and published as [v0.3.0](https://github.com/ianrastall/audio-stretch/releases/tag/v0.3.0) in the same repository. Release source: b0021296a8981de994852b078a2bfe632ef8bb73. The historical 0.2.1 notes below are superseded where they describe planned controls.
+
+The latest stable release contains the installer, complete source ZIP and SHA256SUMS.txt. All uploaded digests match local artifacts. Complete-source layout and 36 shared-source hashes verify; locked restore from the extracted ZIP passes. The actual live updater discovers 0.3.0 from 0.2.1 and downloads/verifies its installer hash (7ff5ab50e9c61f955a1b1c9254a4395a406c7c153c30d475626fe68c327d6e2c). Installed executable/core/CLI/UI assets match the final publish payload. Original settings remain byte-identical after relaunch. Remote master, jupiter and v0.3.0 point to the implementation commit; later documentation commits may follow on the branches.
 
 GUI/CLI share explicit tempo percentage/speed, BPM, duration multiplier/target duration, semitone/cents/frequency, formants, centre focus, real-time file rendering, draft windows, real-time pitch-HQ, clipping and quiet/debug controls. Defaults remain offline R3/Finer with unchanged pitch. Debug 3 audible ticks require opt-in. No R2-only/no-op controls. MainWindow.Processing.cs forwards rules/conversion to core/src/transform.rs through protobuf; MapsWindow edits source-bound rows/native text in frames/seconds; HelpWindow renders supplied XML and actual installed help/full-help/version.
 

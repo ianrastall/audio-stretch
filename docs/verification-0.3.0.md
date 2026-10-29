@@ -2,6 +2,8 @@
 
 29 October 2026. Release target: v0.3.0 in the existing ianrastall/audio-stretch repository.
 
+Published as [latest stable v0.3.0](https://github.com/ianrastall/audio-stretch/releases/tag/v0.3.0), source b0021296a8981de994852b078a2bfe632ef8bb73. Uploaded installer/source/checksum asset digests match local files. Complete source layout, all 36 shared-source hashes and locked restore from the extracted ZIP pass. The actual live updater discovers 0.3.0 as an upgrade from 0.2.1 and verifies the downloaded installer SHA-256: 7ff5ab50e9c61f955a1b1c9254a4395a406c7c153c30d475626fe68c327d6e2c. Installed executable/core/CLI/UI assets match the final publish payload; original settings still match after relaunch.
+
 ## Automated checks
 
 `build/build.ps1 -Verify` passes Rust formatting, Clippy with warnings denied, 11 Rust tests, locked restore, WinUI Release/shared style checks, managed/native integration, updater checks, legacy audio/format checks and 22 measured full-R3 cases. Final presentation changes were rebuilt/installed with `build/build.ps1 -Install`. Public publishing checks reject unintended audio-tool payloads.
