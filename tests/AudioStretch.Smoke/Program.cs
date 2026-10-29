@@ -23,9 +23,17 @@ try
     var output = Path.Combine(temp, "result.flac");
     var sentinel = "previous audio file";
     File.WriteAllText(output, sentinel);
+    var pitchMap = new Maps { SampleRate = info.SampleRate, SourceFrames = info.FrameCount, SourceSha256 = info.Sha256, PitchKind = MapKind.Pitch };
+    pitchMap.PitchPoints.Add(new PitchAnchor { SourceFrame = 0, Value = 3 });
+    pitchMap.PitchPoints.Add(new PitchAnchor { SourceFrame = 480000, Value = -3 });
+    var savedJob = core.ExportJob(new Request { Input = source, Output = output, SourceInfo = info, Transform = new Transform { TimeValue = 5 }, Maps = pitchMap, Encoding = "24", Overwrite = true });
+    var imported = core.Call(new Request { Operation = "job_import", JobJson = savedJob }).Job;
+    Check(!imported.Overwrite && imported.Maps.Equals(pitchMap) && imported.SourceInfo.Sha256 == info.Sha256, "Job roundtrip keeps source identity/maps and disables overwrite");
+    var equivalent = core.Call(new Request { Operation = "convert_time", SourceInfo = info, Transform = new Transform { TimeValue = 25 }, TargetTimeMode = TimeMode.Duration }).Transform;
+    Check(Math.Abs(equivalent.TimeValue - 48) < .000001, "Time entry conversion preserves duration");
     foreach (var stage in new[] { "Decoding", "Stretching", "Encoding" })
     {
-        core.Start(new Request { Input = source, Output = output, TempoChange = 25, Encoding = "24", Overwrite = true });
+        core.Start(new Request { Input = source, Output = output, Transform = new Transform { TimeValue = 25 }, Maps = pitchMap, Encoding = "24", Overwrite = true });
         var watch = Stopwatch.StartNew(); bool cancelled = false; Snapshot current;
         do
         {
@@ -56,6 +64,14 @@ try
     File.WriteAllText(output, "changed by another writer");
     Check((await Finish(core)).State == "Failed", "Changed destination rejected");
     Check(File.ReadAllText(output) == "changed by another writer", "Changed destination preserved");
+
+    File.WriteAllText(output, sentinel);
+    core.Start(new Request { Input = source, Output = output, Transform = new Transform { TimeValue = 25 }, Maps = pitchMap, Encoding = "24", Overwrite = true });
+    while (core.Poll().Stage != "Stretching with Rubber Band R3/Finer") await Task.Delay(5);
+    using (var changed = new FileStream(source, FileMode.Open, FileAccess.Write, FileShare.ReadWrite)) { changed.Position = 1000; changed.WriteByte(123); }
+    var changedSource = await Finish(core);
+    Check(changedSource.State == "Failed" && changedSource.Error.Contains("source changed"), "Source mutation detected with maps");
+    Check(File.ReadAllText(output) == sentinel && changedSource.ReceiptJson.Length == 0, "Source mutation preserves output and publishes no receipt");
 
     var unavailable = new CoreClient(Path.Combine(temp, "missing-tools"));
     using (unavailable)

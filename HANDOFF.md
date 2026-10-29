@@ -1,5 +1,21 @@
 # AudioStretch handoff
 
+## Current 0.3.0 implementation
+
+29 October 2026. The complete R3 plan is implemented, tested and installed locally as 0.3.0. Release target: v0.3.0 in the same repository. The historical 0.2.1 notes below are superseded where they describe planned controls.
+
+GUI/CLI share explicit tempo percentage/speed, BPM, duration multiplier/target duration, semitone/cents/frequency, formants, centre focus, real-time file rendering, draft windows, real-time pitch-HQ, clipping and quiet/debug controls. Defaults remain offline R3/Finer with unchanged pitch. Debug 3 audible ticks require opt-in. No R2-only/no-op controls. MainWindow.Processing.cs forwards rules/conversion to core/src/transform.rs through protobuf; MapsWindow edits source-bound rows/native text in frames/seconds; HelpWindow renders supplied XML and actual installed help/full-help/version.
+
+Maps bind source hash, decoded sample count and rate. Source replacement deliberately clears active maps. Time maps require aggregate duration/offline. Pitch/frequency maps force real-time/high-consistency and override pitch-HQ; combining them with time maps is rejected. Native time maps omit the implicit `0 0` origin to avoid a measured R3 4.0.0 zero-division bug and validate/add final duration anchors. Keep that regression and supplied XML intact. CLI frame cap is 2,147,483,647. Lossy probes decode/count actual gapless samples.
+
+Command preview, JSON jobs, PowerShell scripts and successful receipts capture settings/maps, source/output hashes/properties, actual duration/error, exact arguments, tool paths/versions/hashes and clipping logs. Jobs disable overwrite and reject changed sources. Replay uses current tools; compare hashes. Existing safe publication/cancel/alias/destination checks remain; source mutation rejects publication and no success receipt is emitted on failure.
+
+`build.ps1 -Verify` passes 11 Rust tests/Clippy/formatting, native/managed/updater tests, legacy audio checks and 22 full-R3 audio acceptance cases. Final UI was rebuilt/installed. Start Menu launch, map editing/preview/Apply, actual GUI export, receipt saving and F1/installed help were verified. Original preferences were restored byte-for-byte after UI testing; the installed app was reopened. See docs/verification-0.3.0.md and ignored artifacts/ evidence. Synthetic voiced/tone/impulse checks do not replace perceptual listening on real music.
+
+Build/package-source versions are 0.3.0. After committing, package the exact sibling Jupiter.UI snapshot and publish installer/source ZIP/checksums. Preserve unrelated shared workspace changes. Application/tool update infrastructure and official catalog from 0.2.1 remain; no new audio tool version is assumed tested. Public installers contain app/runtimes, and explicit setup downloads official tool archives. Settings/data/notices/audio remain preserved. No new application source license is inferred.
+
+## Historical 0.2.1 snapshot
+
 29 October 2026. Version 0.2.1 is published and installed locally.
 
 ## Current direction

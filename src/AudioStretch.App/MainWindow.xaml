@@ -1,80 +1,94 @@
 <Window x:Class="AudioStretch.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="AudioStretch">
  <Grid x:Name="Root" Background="{ThemeResource JupiterWindowBrush}" AllowDrop="True" DragOver="RootDragOver" Drop="RootDrop">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <Grid.KeyboardAccelerators>
-   <KeyboardAccelerator Key="O" Modifiers="Control" Invoked="OpenShortcut"/>
-   <KeyboardAccelerator Key="F5" Invoked="ExportShortcut"/>
-  </Grid.KeyboardAccelerators>
+  <Grid.KeyboardAccelerators><KeyboardAccelerator Key="O" Modifiers="Control" Invoked="OpenShortcut"/><KeyboardAccelerator Key="F5" Invoked="ExportShortcut"/><KeyboardAccelerator Key="F1" Invoked="HelpShortcut"/></Grid.KeyboardAccelerators>
   <MenuBar>
    <MenuBarItem Title="File">
-    <MenuFlyoutItem Text="Open…" Click="OpenClicked" KeyboardAcceleratorTextOverride="Ctrl+O"/>
-    <MenuFlyoutItem Text="Export…" Click="ExportClicked" KeyboardAcceleratorTextOverride="F5"/>
-    <MenuFlyoutSeparator/>
-    <MenuFlyoutItem Text="Settings" Click="SettingsClicked" KeyboardAcceleratorTextOverride="Ctrl+,"/>
+    <MenuFlyoutItem Text="Open audio…" Click="OpenClicked" KeyboardAcceleratorTextOverride="Ctrl+O"/>
+    <MenuFlyoutItem Text="Open render job…" Click="ImportJobClicked"/>
+    <MenuFlyoutSeparator/><MenuFlyoutItem Text="Export audio…" Click="ExportClicked" KeyboardAcceleratorTextOverride="F5"/>
+    <MenuFlyoutItem Text="Export render job…" Click="ExportJobClicked"/>
+    <MenuFlyoutItem Text="Save replay script…" Click="SaveScriptClicked"/>
+    <MenuFlyoutItem Text="Save render receipt…" Click="SaveReceiptClicked"/>
+    <MenuFlyoutSeparator/><MenuFlyoutItem Text="Settings" Click="SettingsClicked" KeyboardAcceleratorTextOverride="Ctrl+,"/>
     <MenuFlyoutSeparator/><MenuFlyoutItem Text="Exit" Click="ExitClicked"/>
    </MenuBarItem>
    <MenuBarItem Title="Audio">
-    <MenuFlyoutItem Text="Play source" Click="PlaySourceClicked"/>
-    <MenuFlyoutItem Text="Play output" Click="PlayOutputClicked"/>
-    <MenuFlyoutItem Text="Stop playback" Click="StopClicked"/>
+    <MenuFlyoutItem Text="Edit maps…" Click="EditMapsClicked"/><MenuFlyoutItem Text="Clear maps…" Click="ClearMapsClicked"/>
+    <MenuFlyoutSeparator/><MenuFlyoutItem Text="Play source" Click="PlaySourceClicked"/><MenuFlyoutItem Text="Play output" Click="PlayOutputClicked"/><MenuFlyoutItem Text="Stop playback" Click="StopClicked"/>
     <MenuFlyoutSeparator/><MenuFlyoutItem Text="Cancel render" Click="CancelClicked"/>
    </MenuBarItem>
-   <MenuBarItem Title="Help"><MenuFlyoutItem Text="Check for updates…" Click="SettingsClicked"/><MenuFlyoutItem Text="About AudioStretch" Click="AboutClicked"/></MenuBarItem>
+   <MenuBarItem Title="Help"><MenuFlyoutItem Text="Rubber Band reference" Click="HelpClicked" KeyboardAcceleratorTextOverride="F1"/><MenuFlyoutItem Text="Check for updates…" Click="SettingsClicked"/><MenuFlyoutItem Text="About AudioStretch" Click="AboutClicked"/></MenuBarItem>
   </MenuBar>
   <ScrollViewer x:Name="FormScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
    <StackPanel Padding="24" Spacing="16" Width="{Binding ActualWidth, ElementName=FormScroll}" MaxWidth="688" HorizontalAlignment="Left">
     <InfoBar x:Name="MessageBar" IsOpen="False" IsClosable="True"><InfoBar.ActionButton><Button x:Name="SetupTools" Content="Install audio tools…" Click="SetupToolsClicked" Visibility="Collapsed"/></InfoBar.ActionButton></InfoBar>
-    <Grid ColumnSpacing="8">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBox x:Name="SourcePath" Header="Source audio" IsReadOnly="True" PlaceholderText="Open an audio file or drop it here" MinWidth="240"/>
      <Button x:Name="OpenButton" Grid.Column="1" Content="Open…" Click="OpenClicked" VerticalAlignment="Bottom"/>
     </Grid>
     <TextBlock x:Name="SourceInfo" Text="No audio loaded" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
-    <Grid ColumnSpacing="16">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-     <TextBox x:Name="Tempo" Header="Tempo (%)" Text="5" TextChanged="TempoChanged" LostFocus="TempoLostFocus" InputScope="Number"/>
-     <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Spacing="4">
-      <Slider x:Name="TempoSlider" Minimum="-75" Maximum="300" StepFrequency="0.1" Value="5" ValueChanged="SliderChanged" AutomationProperties.Name="Tempo change"/>
-      <TextBlock x:Name="TempoSummary" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <ComboBox x:Name="TimeModeChoice" Header="Time" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="TimeModeChanged">
+      <ComboBoxItem Content="Tempo change (%)"/><ComboBoxItem Content="Speed multiplier"/><ComboBoxItem Content="Source / target BPM"/><ComboBoxItem Content="Duration multiplier"/><ComboBoxItem Content="Target duration"/>
+     </ComboBox>
+     <StackPanel x:Name="TimeValuePanel" Grid.Column="1" Spacing="4"><TextBox x:Name="Tempo" Header="Tempo (%)" Text="5" TextChanged="TempoChanged" LostFocus="TempoLostFocus"/>
+      <Slider x:Name="TempoSlider" Minimum="-75" Maximum="300" StepFrequency="0.1" Value="5" ValueChanged="SliderChanged" AutomationProperties.Name="Coarse tempo change"/>
      </StackPanel>
     </Grid>
-    <TextBlock x:Name="TempoError" Visibility="Collapsed" Style="{StaticResource JupiterCaptionTextStyle}" Foreground="{ThemeResource JupiterErrorBrush}" Text="⚠ Enter a tempo change between -75% and +300%." TextWrapping="Wrap"/>
-    <TextBlock Text="Pitch unchanged · Rubber Band R3/Finer" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
-    <Grid ColumnSpacing="16">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid x:Name="BpmFields" ColumnSpacing="16" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <TextBox x:Name="BpmFrom" Header="Source BPM" Text="120" TextChanged="ProcessingTextChanged"/><TextBox x:Name="BpmTo" Grid.Column="1" Header="Target BPM" Text="120" TextChanged="ProcessingTextChanged"/>
+    </Grid>
+    <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <ComboBox x:Name="PitchModeChoice" Header="Pitch" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="PitchModeChanged"><ComboBoxItem Content="Unchanged"/><ComboBoxItem Content="Semitones"/><ComboBoxItem Content="Cents"/><ComboBoxItem Content="Frequency multiplier"/></ComboBox>
+     <TextBox x:Name="PitchValue" Grid.Column="1" Header="Pitch value" Text="0" TextChanged="ProcessingTextChanged"/>
+    </Grid>
+    <CheckBox x:Name="Formant" Content="Preserve formants when shifting pitch" Checked="ProcessingChanged" Unchecked="ProcessingChanged"/>
+    <StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="MapsButton" Content="Edit maps…" Click="EditMapsClicked" IsEnabled="False"/><Button x:Name="ClearMaps" Content="Clear maps…" Click="ClearMapsClicked" IsEnabled="False"/></StackPanel>
+    <TextBlock x:Name="MapSummary" Text="No dynamic maps" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <Expander Header="Processing and diagnostics" HorizontalAlignment="Stretch">
+     <StackPanel Spacing="16">
+      <CheckBox x:Name="EngineRealtime" Content="Use real-time engine for file rendering" Checked="RealtimeChanged" Unchecked="RealtimeChanged"/>
+      <TextBlock Text="Offline is the default. Pitch/frequency maps force real-time mode; time maps require offline. Real-time file rendering does not guarantee an exact duration." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+      <ComboBox x:Name="WindowChoice" Header="R3 processing window" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ProcessingSelectionChanged"><ComboBoxItem Content="Standard multi-resolution (default)"/><ComboBoxItem Content="Short-window draft (lower CPU / quality)"/></ComboBox>
+      <CheckBox x:Name="HqPitch" Content="High-quality pitch mode for real-time processing" Checked="ProcessingChanged" Unchecked="ProcessingChanged"/>
+      <TextBlock Text="Pitch/frequency maps select high-consistency mode instead. Offline processing already uses its own pitch path." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+      <CheckBox x:Name="CentreFocus" Content="Preserve stereo centre focus" Checked="CentreFocusChanged" Unchecked="CentreFocusChanged"/>
+      <TextBlock Text="For stereo sources: improves centre focus and mono compatibility, with a small tradeoff in individual channel fidelity." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+      <ComboBox x:Name="ClippingChoice" Header="Clipping behavior" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ProcessingSelectionChanged"><ComboBoxItem Content="Recover with reduced-gain restart (default)"/><ComboBoxItem Content="Clamp without restart (may distort)"/></ComboBox>
+      <TextBlock Text="Upstream recovery reduces gain down to 0.75 before clamping. Recovery is not loudness normalization." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+      <ComboBox x:Name="DebugLevel" Header="Rubber Band diagnostics" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ProcessingSelectionChanged"><ComboBoxItem Content="0 — Normal"/><ComboBoxItem Content="1 — Debug log"/><ComboBoxItem Content="2 — Detailed debug log"/><ComboBoxItem x:Name="DebugTicksItem" Content="3 — Audible debug ticks" IsEnabled="False"/></ComboBox>
+      <CheckBox x:Name="DiagnosticRender" Content="Diagnostic render: allow audible ticks at level 3" Checked="DiagnosticChanged" Unchecked="DiagnosticChanged"/>
+      <CheckBox x:Name="QuietMode" Content="Suppress Rubber Band progress and informational messages" Checked="ProcessingChanged" Unchecked="ProcessingChanged"/>
+     </StackPanel>
+    </Expander>
+    <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <ComboBox x:Name="Format" Header="Output format" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="ExportChoiceChanged"><ComboBoxItem Content="WAV"/><ComboBoxItem Content="FLAC"/></ComboBox>
      <ComboBox x:Name="Precision" Grid.Column="1" Header="Sample precision" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="ExportChoiceChanged"><ComboBoxItem Content="32-bit float" Tag="float"/><ComboBoxItem Content="24-bit" Tag="24"/><ComboBoxItem Content="16-bit" Tag="16"/></ComboBox>
     </Grid>
-    <Grid ColumnSpacing="8">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-     <TextBox x:Name="OutputPath" Header="Output file" TextChanged="OutputChanged"/>
-     <Button x:Name="OutputBrowse" Grid.Column="1" Content="Browse…" Click="OutputBrowseClicked" VerticalAlignment="Bottom"/>
+    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <TextBox x:Name="OutputPath" Header="Output file" TextChanged="OutputChanged"/><Button x:Name="OutputBrowse" Grid.Column="1" Content="Browse…" Click="OutputBrowseClicked" VerticalAlignment="Bottom"/>
     </Grid>
     <TextBlock Text="Original sample rate and channels. Tags and artwork are not copied." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
-    <StackPanel Orientation="Horizontal" Spacing="8">
-     <Button x:Name="PlaySource" Content="Play source" Click="PlaySourceClicked" IsEnabled="False"/>
-     <Button x:Name="PlayOutput" Content="Play output" Click="PlayOutputClicked" IsEnabled="False"/>
-     <Button Content="Stop playback" Click="StopClicked"/>
-    </StackPanel>
+    <TextBlock x:Name="TempoSummary" Style="{StaticResource JupiterBodyTextStyle}" TextWrapping="Wrap"/>
+    <TextBlock x:Name="TempoError" Visibility="Collapsed" Style="{StaticResource JupiterCaptionTextStyle}" Foreground="{ThemeResource JupiterErrorBrush}" TextWrapping="Wrap"/>
+    <TextBlock x:Name="PlanWarnings" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <Expander Header="Command and render job" HorizontalAlignment="Stretch"><StackPanel Spacing="8">
+     <TextBlock Text="Rubber Band stage: the pipeline supplies decoded float WAV and snapshotted map files. Export a job to replay the complete decode/render/encode operation." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+     <TextBox x:Name="CommandPreview" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="{StaticResource JupiterMonoFontFamily}" FontSize="{StaticResource JupiterCaptionFontSize}" AutomationProperties.Name="Rubber Band stage command"/>
+     <StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="JobExport" Content="Export job…" Click="ExportJobClicked" IsEnabled="False"/><Button Content="Copy stage command" Click="CopyCommandClicked"/></StackPanel>
+     <TextBox x:Name="ReplayCommand" Header="Saved job replay command" IsReadOnly="True" TextWrapping="Wrap" FontFamily="{StaticResource JupiterMonoFontFamily}" FontSize="{StaticResource JupiterCaptionFontSize}"/>
+     <StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="ScriptExport" Content="Save replay script…" Click="SaveScriptClicked" IsEnabled="False"/><Button Content="Copy replay command" Click="CopyReplayClicked"/></StackPanel>
+    </StackPanel></Expander>
+    <StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="PlaySource" Content="Play source" Click="PlaySourceClicked" IsEnabled="False"/><Button x:Name="PlayOutput" Content="Play output" Click="PlayOutputClicked" IsEnabled="False"/><Button Content="Stop playback" Click="StopClicked"/></StackPanel>
     <TextBlock x:Name="PlaybackLabel" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed"/>
     <MediaPlayerElement x:Name="Player" AreTransportControlsEnabled="True" Visibility="Collapsed" Height="96"/>
-    <Expander Header="Processing log" HorizontalAlignment="Stretch">
-     <StackPanel Spacing="8"><Button Content="Copy log" Click="CopyLogClicked" HorizontalAlignment="Left"/>
-      <TextBox x:Name="Log" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="240" FontFamily="{StaticResource JupiterMonoFontFamily}" FontSize="{StaticResource JupiterCaptionFontSize}" AutomationProperties.Name="Processing log"/>
-     </StackPanel>
-    </Expander>
+    <TextBlock x:Name="ResultDetails" Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <Button x:Name="ReceiptExport" Content="Save render receipt…" Click="SaveReceiptClicked" IsEnabled="False" HorizontalAlignment="Left"/>
+    <Expander Header="Processing log" HorizontalAlignment="Stretch"><StackPanel Spacing="8"><Button Content="Copy log" Click="CopyLogClicked" HorizontalAlignment="Left"/><TextBox x:Name="Log" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="240" FontFamily="{StaticResource JupiterMonoFontFamily}" FontSize="{StaticResource JupiterCaptionFontSize}" AutomationProperties.Name="Processing log"/></StackPanel></Expander>
    </StackPanel>
   </ScrollViewer>
-  <StackPanel Grid.Row="2" Padding="24,12" Spacing="8">
-   <StackPanel Orientation="Horizontal" Spacing="8">
-    <Button x:Name="ExportButton" Content="Export…" Style="{StaticResource AccentButtonStyle}" Click="ExportClicked" IsEnabled="False"/>
-    <Button x:Name="CancelButton" Content="Cancel render" Click="CancelClicked" IsEnabled="False"/>
-   </StackPanel>
-   <TextBlock x:Name="ProgressText" Text="Choose audio to begin." Style="{StaticResource JupiterBodyTextStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-   <ProgressBar x:Name="Progress" Visibility="Collapsed" IsIndeterminate="True"/>
-  </StackPanel>
-  <Border Grid.Row="3" Background="{ThemeResource JupiterSurfaceBrush}" BorderBrush="{ThemeResource JupiterSeparatorBrush}" BorderThickness="0,1,0,0" Padding="12,0" MinHeight="32">
-   <TextBlock x:Name="Status" Text="Ready" Style="{StaticResource JupiterCaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap"/>
-  </Border>
+  <StackPanel Grid.Row="2" Padding="24,12" Spacing="8"><StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="ExportButton" Content="Export audio…" Style="{StaticResource AccentButtonStyle}" Click="ExportClicked" IsEnabled="False"/><Button x:Name="CancelButton" Content="Cancel render" Click="CancelClicked" IsEnabled="False"/></StackPanel><TextBlock x:Name="ProgressText" Text="Choose audio to begin." Style="{StaticResource JupiterBodyTextStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/><ProgressBar x:Name="Progress" Visibility="Collapsed" IsIndeterminate="True"/></StackPanel>
+  <Border Grid.Row="3" Background="{ThemeResource JupiterSurfaceBrush}" BorderBrush="{ThemeResource JupiterSeparatorBrush}" BorderThickness="0,1,0,0" Padding="12,0" MinHeight="32"><TextBlock x:Name="Status" Text="Ready" Style="{StaticResource JupiterCaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap"/></Border>
  </Grid>
 </Window>

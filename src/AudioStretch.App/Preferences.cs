@@ -10,6 +10,7 @@ public sealed class Preferences : IThemePreferences, IAccentPreferences
     public bool UseCustomAccent { get; set; }
     public string? CustomAccent { get; set; }
     public double TempoChange { get; set; } = 5;
+    public string? LastTransformJson { get; set; }
     public string Format { get; set; } = "wav";
     public string Encoding { get; set; } = "float";
     public bool CentreFocus { get; set; }

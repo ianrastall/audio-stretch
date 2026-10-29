@@ -30,6 +30,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (!_ready) return;
         App.Preferences.CentreFocus = CentreFocus.IsChecked == true;
+        _main.RefreshProcessingPreferences();
         try { App.Preferences.Save(); }
         catch (Exception error) { ErrorBar.Title = "Settings could not be saved"; ErrorBar.Message = error.Message; ErrorBar.IsOpen = true; }
     }

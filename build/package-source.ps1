@@ -1,4 +1,4 @@
-param([string]$Version='0.2.1')
+param([string]$Version='0.3.0')
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $ui=Join-Path (Split-Path $root -Parent) 'jupiter-ui'

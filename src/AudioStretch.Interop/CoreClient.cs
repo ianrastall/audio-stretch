@@ -51,7 +51,7 @@ public sealed class CoreClient : IDisposable
             using (result)
             {
                 if (status != 0) throw new InvalidOperationException($"Audio core request failed ({status}). Restart AudioStretch.");
-                if (Native.audio_result_bytes(result, out var data, out var length) != 0 || length > 2_097_152)
+                if (Native.audio_result_bytes(result, out var data, out var length) != 0 || length > 16_777_216)
                     throw new InvalidOperationException("Invalid response from the audio core.");
                 var copy = new byte[(int)length];
                 if (copy.Length > 0) Marshal.Copy(data, copy, 0, copy.Length);
@@ -63,6 +63,8 @@ public sealed class CoreClient : IDisposable
         }
     }
     public Task<AudioInfo> ProbeAsync(string path) => Task.Run(() => Call(new Request { Operation = "probe", Input = path }).Info);
+    public RenderPlan Plan(Request request) { request.Operation = "plan"; return Call(request).Plan; }
+    public string ExportJob(Request request) { request.Operation = "job_export"; return Call(request).Text; }
     public Snapshot Start(Request request) { request.Operation = "start"; return Call(request).Snapshot; }
     public Snapshot Poll() => Call(new Request { Operation = "poll" }).Snapshot;
     public void Cancel() => Call(new Request { Operation = "cancel" });

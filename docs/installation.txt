@@ -1,4 +1,4 @@
-AudioStretch 0.2.1
+AudioStretch 0.3.0
 
 After installation, open AudioStretch from the Windows Start Menu.
 
@@ -17,7 +17,12 @@ anything automatically. The app updater closes AudioStretch, runs the
 verified installer, then reopens it.
 
 Open one audio file, set Tempo (%), choose WAV/FLAC and the output path,
-then select Export. R3/Finer is always used and pitch stays unchanged.
+then select Export. Offline R3/Finer and unchanged pitch are the defaults.
+Time/BPM/duration and independent pitch/formant controls are available.
+Edit maps opens source-bound time, pitch or frequency rows and text import/export.
+Processing and diagnostics contains the remaining meaningful R3 options.
+Save render jobs for replay and receipts for provenance. F1 opens the manual
+and installed Rubber Band help. Debug level 3 deliberately adds audible ticks.
 
 Windows 11 24H2 or newer, x64, is required. This release is unsigned.
 Project and releases: https://github.com/ianrastall/audio-stretch

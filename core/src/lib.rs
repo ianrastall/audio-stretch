@@ -1,11 +1,14 @@
 mod process;
+pub mod transform;
 pub mod wire {
     include!(concat!(env!("OUT_DIR"), "/audio.rs"));
 }
 
 use prost::Message;
+use sha2::{Digest, Sha256};
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -63,6 +66,15 @@ pub fn parse_probe(json: &str) -> Result<AudioInfo, String> {
         value_u32(&stream["bits_per_raw_sample"]).max(value_u32(&stream["bits_per_sample"]));
     let lossless = codec.starts_with("pcm_")
         || ["flac", "alac", "wavpack", "ape", "tta", "truehd", "mlp"].contains(&codec.as_str());
+    let frame_count = stream["duration_ts"]
+        .as_u64()
+        .and_then(|ticks| {
+            let (numerator, denominator) = stream["time_base"].as_str()?.split_once('/')?;
+            let base = numerator.parse::<f64>().ok()? / denominator.parse::<f64>().ok()?;
+            let frames = ticks as f64 * base * f64::from(sample_rate);
+            (frames.is_finite() && frames > 0.0).then_some(frames.round() as u64)
+        })
+        .unwrap_or((secs * f64::from(sample_rate)).round() as u64);
     Ok(AudioInfo {
         sample_rate,
         channels,
@@ -70,6 +82,8 @@ pub fn parse_probe(json: &str) -> Result<AudioInfo, String> {
         codec,
         duration: secs,
         lossy: !lossless,
+        frame_count,
+        sha256: String::new(),
     })
 }
 
@@ -146,8 +160,99 @@ impl Tools {
             cancel,
             Duration::from_secs(30),
         )?;
-        parse_probe(&text)
+        let mut info = parse_probe(&text)?;
+        if info.lossy {
+            // Count actual decoded samples, accounting for codec priming/padding before maps are edited.
+            let count = process::run(
+                &self.exe("ffmpeg")?,
+                &strings(&[
+                    "-hide_banner",
+                    "-nostdin",
+                    "-v",
+                    "info",
+                    "-i",
+                    &input.to_string_lossy(),
+                    "-map",
+                    "0:a:0",
+                    "-vn",
+                    "-sn",
+                    "-dn",
+                    "-af",
+                    "astats=metadata=0:reset=0:measure_perchannel=none:measure_overall=Number_of_samples",
+                    "-f",
+                    "null",
+                    "NUL",
+                ]),
+                cancel,
+                Duration::from_secs(3600),
+            )?;
+            let frames = count
+                .lines()
+                .rev()
+                .find_map(|line| {
+                    line.split_once("Number of samples:")
+                        .and_then(|(_, value)| value.trim().parse::<u64>().ok())
+                })
+                .ok_or("Could not count the decoded source frames.")?;
+            info.frame_count = frames;
+        }
+        if info.frame_count == 0 || info.frame_count > transform::MAX_FRAME {
+            return Err("The Rubber Band CLI supports 1–2,147,483,647 source frames. This source is outside that range.".into());
+        }
+        info.duration = info.frame_count as f64 / f64::from(info.sample_rate);
+        info.sha256 = file_hash(input, cancel)?;
+        Ok(info)
     }
+    fn help(&self, mode: &str, cancel: &AtomicBool) -> Result<String, String> {
+        let arg = match mode {
+            "normal" => "--help",
+            "full" => "--full-help",
+            "version" => "--version",
+            _ => return Err("Choose normal, full or version help.".into()),
+        };
+        process::run_allowed(
+            &self.exe("rubberband-r3")?,
+            &strings(&[arg]),
+            cancel,
+            Duration::from_secs(30),
+            &[0, 2],
+        )
+    }
+}
+fn file_hash(path: &Path, cancel: &AtomicBool) -> Result<String, String> {
+    let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut hash = Sha256::new();
+    let mut buffer = [0; 131072];
+    loop {
+        if cancel.load(Ordering::Acquire) {
+            return Err("Cancelled".into());
+        }
+        let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&buffer[..n]);
+    }
+    Ok(format!("{:x}", hash.finalize()))
+}
+fn validate_artifact(request: &Request) -> Result<(), String> {
+    let artifact = Path::new(&request.artifact_path);
+    if !artifact.is_absolute() {
+        return Err("Choose an absolute artifact path.".into());
+    }
+    for audio in [&request.input, &request.output] {
+        if !audio.is_empty()
+            && artifact.exists()
+            && Path::new(audio).exists()
+            && same_file::is_same_file(artifact, audio).map_err(|e| e.to_string())?
+        {
+            return Err("A job, map or receipt cannot replace the source or output audio (including a file alias).".into());
+        }
+        if !audio.is_empty() && artifact == Path::new(audio) {
+            return Err("A job, map or receipt must use a different path from the audio.".into());
+        }
+    }
+    Ok(())
 }
 fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|s| (*s).into()).collect()
@@ -237,7 +342,6 @@ pub fn render(
     cancel: &AtomicBool,
     snapshot: &Arc<Mutex<Snapshot>>,
 ) -> Result<(), String> {
-    let speed = multiplier(request.tempo_change)?;
     let input = PathBuf::from(&request.input);
     let output = PathBuf::from(&request.output);
     let before = validate_paths(&input, &output, request.overwrite)?;
@@ -259,13 +363,45 @@ pub fn render(
     let ffmpeg = tools.exe("ffmpeg")?;
     stage(snapshot, "Probing audio");
     let info = tools.probe(&input, cancel)?;
+    validate_source_identity(request.source_info.as_ref(), &info)?;
+    let plan = transform::plan(request, &info)?;
+    {
+        let mut s = snapshot.lock().unwrap();
+        s.plan = Some(plan.clone());
+        s.warnings = plan.warnings.clone();
+    }
     log(
         snapshot,
         &format!(
-            "{} Hz · {} channels · {} · {:.3}s\nTempo: {speed:.9}x · pitch unchanged · R3/Finer",
-            info.sample_rate, info.channels, info.codec, info.duration
+            "{} Hz · {} channels · {} · {:.3}s\n{}",
+            info.sample_rate, info.channels, info.codec, info.duration, plan.summary
         ),
     );
+    for warning in &plan.warnings {
+        log(snapshot, warning);
+    }
+    let tool_cancel = cancel;
+    stage(snapshot, "Recording tool provenance");
+    let mut provenance = vec![];
+    for (name, exe, flag) in [
+        ("rubberband-r3", &rb, "--version"),
+        ("ffmpeg", &ffmpeg, "-version"),
+    ] {
+        let version = process::run(exe, &strings(&[flag]), tool_cancel, Duration::from_secs(30))?;
+        provenance.push(serde_json::json!({"name":name,"path":exe,"sha256":file_hash(exe,cancel)?,"version":version.trim()}));
+    }
+    let probe_exe = tools.exe("ffprobe")?;
+    let probe_version = process::run(
+        &probe_exe,
+        &strings(&["-version"]),
+        cancel,
+        Duration::from_secs(30),
+    )?;
+    provenance.push(serde_json::json!({"name":"ffprobe","path":probe_exe,"sha256":file_hash(&probe_exe,cancel)?,"version":probe_version.trim()}));
+    let sndfile = rb.parent().unwrap().join("sndfile.dll");
+    if sndfile.is_file() {
+        provenance.push(serde_json::json!({"name":"libsndfile","path":sndfile,"sha256":file_hash(&sndfile,cancel)?}));
+    }
     let work = tempfile::Builder::new()
         .prefix(".audiostretch-")
         .tempdir_in(output.parent().unwrap())
@@ -302,27 +438,51 @@ pub fn render(
         timeout,
     )?;
     log(snapshot, &text);
+    let decoded_info = tools.probe(&decoded, cancel)?;
+    if decoded_info.frame_count != info.frame_count
+        || decoded_info.sample_rate != info.sample_rate
+        || decoded_info.channels != info.channels
+    {
+        return Err("Decoded audio does not match the source frame count, rate or channels. Reload the source before rendering.".into());
+    }
     stage(snapshot, "Stretching with Rubber Band R3/Finer");
-    let mut args = strings(&["--fine", "--tempo", &speed.to_string()]);
-    if request.centre_focus && info.channels == 2 {
-        args.push("--centre-focus".into());
+    let mut args = plan.options.clone();
+    if !plan.time_map_text.is_empty() {
+        let map = work.path().join("time-map.txt");
+        fs::write(&map, &plan.time_map_text).map_err(|e| e.to_string())?;
+        args.extend(["--timemap".into(), map.to_string_lossy().into_owned()]);
+    }
+    if !plan.pitch_map_text.is_empty() {
+        let map = work.path().join("pitch-map.txt");
+        fs::write(&map, &plan.pitch_map_text).map_err(|e| e.to_string())?;
+        args.extend([
+            if plan.pitch_kind == wire::MapKind::FrequencyMap as i32 {
+                "--freqmap".into()
+            } else {
+                "--pitchmap".into()
+            },
+            map.to_string_lossy().into_owned(),
+        ]);
     }
     args.extend([
         decoded.to_string_lossy().into_owned(),
         stretched.to_string_lossy().into_owned(),
     ]);
-    log(
-        snapshot,
-        &format!(
-            "rubberband-r3 --fine --tempo {speed}{}",
-            if request.centre_focus && info.channels == 2 {
-                " --centre-focus"
-            } else {
-                ""
-            }
-        ),
-    );
-    log(snapshot, &process::run(&rb, &args, cancel, timeout)?);
+    log(snapshot, &format!("Rubber Band arguments: {args:?}"));
+    let rb_output = process::run(&rb, &args, cancel, timeout)?;
+    let clipping: Vec<_> = rb_output
+        .lines()
+        .filter(|line| {
+            line.to_ascii_lowercase().contains("clipping") || line.contains("reduced gain")
+        })
+        .map(str::to_owned)
+        .collect();
+    {
+        let mut s = snapshot.lock().unwrap();
+        s.warnings.extend(clipping.clone());
+    }
+    log(snapshot, &rb_output);
+    let rb_arguments = args.clone();
     stage(snapshot, "Encoding output");
     let mut args = strings(&[
         "-hide_banner",
@@ -370,13 +530,30 @@ pub fn render(
     log(snapshot, &process::run(&ffmpeg, &args, cancel, timeout)?);
     stage(snapshot, "Validating output");
     let result = tools.probe(&pending, cancel)?;
-    let expected = info.duration / speed;
+    let expected = plan.expected_duration;
+    let tolerance = if plan.realtime {
+        0.5 + expected * 0.02
+    } else {
+        0.1_f64.max(expected * 0.0001)
+    };
     if result.sample_rate != info.sample_rate
         || result.channels != info.channels
-        || (result.duration - expected).abs() > 0.1_f64.max(expected * 0.0001)
+        || (result.duration - expected).abs() > tolerance
     {
         return Err("Output validation failed: duration, sample rate or channels differ from the processing plan. The destination was preserved.".into());
     }
+    if file_hash(&input, cancel)? != info.sha256 {
+        return Err("The source changed during rendering. The destination was preserved.".into());
+    }
+    let mut replay = request.clone();
+    replay.operation = "start".into();
+    replay.request_id = 0;
+    replay.overwrite = false;
+    replay.source_info = Some(info.clone());
+    replay.artifact_path.clear();
+    replay.map_text.clear();
+    let receipt = serde_json::json!({"schema_version":1,"application_version":env!("CARGO_PKG_VERSION"),"request":replay,"plan":plan,"source":info,"output":result,"actual_duration":result.duration,"duration_error":result.duration-expected,"duration_validation_tolerance_seconds":tolerance,"tools":provenance,"rubberband_arguments":rb_arguments,"rubberband_log":rb_output,"clipping_messages":clipping,"map_units":"sample frames","map_rounding":"seconds converted to nearest frame, half away from zero","replay_note":"Extract request to a job JSON and use audio-stretch-cli --job; overwrite is disabled by default."});
+    let receipt_json = serde_json::to_string_pretty(&receipt).map_err(|e| e.to_string())?;
     if cancel.load(Ordering::Acquire) {
         return Err("Cancelled".into());
     }
@@ -388,11 +565,33 @@ pub fn render(
     // Windows replacement needs the compared destination handles released first.
     drop(before);
     publish(&pending, &output, overwrite)?;
-    snapshot.lock().unwrap().output = request.output.clone();
+    {
+        let mut s = snapshot.lock().unwrap();
+        s.output = request.output.clone();
+        s.actual_duration = result.duration;
+        s.duration_error = result.duration - expected;
+        s.receipt_json = receipt_json;
+    }
     log(
         snapshot,
         &format!("Completed: {} ({:.3}s)", output.display(), result.duration),
     );
+    Ok(())
+}
+
+pub fn validate_source_identity(
+    recorded: Option<&AudioInfo>,
+    actual: &AudioInfo,
+) -> Result<(), String> {
+    if let Some(recorded) = recorded
+        && !recorded.sha256.is_empty()
+        && (recorded.sha256 != actual.sha256
+            || recorded.sample_rate != actual.sample_rate
+            || recorded.frame_count != actual.frame_count
+            || recorded.channels != actual.channels)
+    {
+        return Err("The source differs from the loaded audio or saved render job. Reload the source and deliberately create a new job.".into());
+    }
     Ok(())
 }
 
@@ -442,6 +641,88 @@ impl Engine {
                     self.tools
                         .probe(Path::new(&req.input), &AtomicBool::new(false))?,
                 )),
+                "plan" | "job_export" => {
+                    let info = if let Some(info) = req.source_info.as_ref() {
+                        info.clone()
+                    } else {
+                        self.tools
+                            .probe(Path::new(&req.input), &AtomicBool::new(false))?
+                    };
+                    reply.plan = Some(transform::plan(&req, &info)?);
+                    if req.operation == "job_export" {
+                        let mut job = req.clone();
+                        job.operation = "start".into();
+                        job.request_id = 0;
+                        job.overwrite = false;
+                        job.map_text.clear();
+                        job.artifact_path.clear();
+                        job.source_info = Some(info);
+                        reply.text =
+                            serde_json::to_string_pretty(&job).map_err(|e| e.to_string())?;
+                    }
+                    Ok(None)
+                }
+                "convert_time" | "convert_pitch" => {
+                    let info = req
+                        .source_info
+                        .as_ref()
+                        .ok_or("Load source audio before converting modes.")?;
+                    reply.transform = Some(transform::convert(
+                        &req,
+                        info,
+                        req.operation == "convert_time",
+                    )?);
+                    Ok(None)
+                }
+                "job_import" => {
+                    let json: serde_json::Value = serde_json::from_str(&req.job_json)
+                        .map_err(|e| format!("Invalid job JSON: {e}"))?;
+                    let mut job: Request =
+                        serde_json::from_value(json.get("request").unwrap_or(&json).clone())
+                            .map_err(|e| format!("Invalid render request: {e}"))?;
+                    let info = self
+                        .tools
+                        .probe(Path::new(&job.input), &AtomicBool::new(false))?;
+                    validate_source_identity(job.source_info.as_ref(), &info)?;
+                    reply.plan = Some(transform::plan(&job, &info)?);
+                    job.source_info = Some(info);
+                    job.overwrite = false;
+                    job.request_id = 0;
+                    job.operation = "start".into();
+                    reply.job = Some(job);
+                    Ok(None)
+                }
+                "map_import" | "map_export" => {
+                    let info = req
+                        .source_info
+                        .as_ref()
+                        .ok_or("Load source audio before editing maps.")?;
+                    if req.operation == "map_import" {
+                        reply.maps = Some(transform::import_map(&req, info)?);
+                    } else {
+                        let maps = req.maps.as_ref().ok_or("No map data to export.")?;
+                        transform::validate_maps(maps, info)?;
+                        let kind = wire::MapKind::try_from(req.map_kind)
+                            .map_err(|_| "Unknown map kind.")?;
+                        reply.text = transform::export_map(maps, kind, req.map_seconds);
+                    }
+                    Ok(None)
+                }
+                "validate_artifact" => {
+                    validate_artifact(&req)?;
+                    Ok(None)
+                }
+                "help" | "full_help" | "tool_version" => {
+                    reply.text = self.tools.help(
+                        match req.operation.as_str() {
+                            "help" => "normal",
+                            "full_help" => "full",
+                            _ => "version",
+                        },
+                        &AtomicBool::new(false),
+                    )?;
+                    Ok(None)
+                }
                 "start" => {
                     if self.worker.as_ref().is_some_and(|w| !w.is_finished()) {
                         return Err("Audio processing is already running.".into());
@@ -449,7 +730,9 @@ impl Engine {
                     if let Some(w) = self.worker.take() {
                         let _ = w.join();
                     }
-                    multiplier(req.tempo_change)?;
+                    if req.transform.is_none() {
+                        multiplier(req.tempo_change)?;
+                    }
                     self.cancel.store(false, Ordering::Release);
                     *self.snapshot.lock().unwrap() = Snapshot {
                         state: "Running".into(),
@@ -556,7 +839,7 @@ pub unsafe extern "C" fn audio_call(
     len: usize,
     out: *mut *mut Vec<u8>,
 ) -> i32 {
-    if engine.is_null() || input.is_null() || out.is_null() || len > 1_048_576 {
+    if engine.is_null() || input.is_null() || out.is_null() || len > 8_388_608 {
         return 1;
     }
     unsafe {

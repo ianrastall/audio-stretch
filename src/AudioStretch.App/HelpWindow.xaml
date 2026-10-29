@@ -1,0 +1,7 @@
+<Window x:Class="AudioStretch.HelpWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Rubber Band reference - AudioStretch">
+ <Grid x:Name="Root" Background="{ThemeResource JupiterWindowBrush}" Padding="24" RowSpacing="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <StackPanel Spacing="8"><TextBlock Text="Rubber Band reference" Style="{StaticResource JupiterPageHeadingTextStyle}"/><ComboBox x:Name="View" Header="Reference source" SelectedIndex="0" SelectionChanged="ViewChanged"><ComboBoxItem Content="Supplied complete XML manual"/><ComboBoxItem Content="Installed tool: --help"/><ComboBoxItem Content="Installed tool: --full-help"/><ComboBoxItem Content="Installed tool: --version"/></ComboBox><TextBlock Text="The complete manual includes R2-only and ignored compatibility options. AudioStretch exposes controls with an effect in R3." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/></StackPanel>
+  <TextBox Grid.Row="1" x:Name="Reference" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="{StaticResource JupiterMonoFontFamily}" AutomationProperties.Name="Reference text"/>
+  <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"><Button Content="Copy reference" Click="CopyClicked"/><Button Content="Close" Click="CloseClicked"/></StackPanel>
+ </Grid>
+</Window>

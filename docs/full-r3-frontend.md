@@ -1,6 +1,6 @@
 # Full Rubber Band R3 frontend
 
-29 October 2026. AudioStretch 0.2.1 is the first public Jupiter release candidate. This document specifies the next implementation; it does not claim that the additional processing controls already exist.
+29 October 2026. Implemented in AudioStretch 0.3.0. This document records the accepted scope and acceptance requirements; see verification-0.3.0.md for measured results and limitations.
 
 ## Scope and evidence
 

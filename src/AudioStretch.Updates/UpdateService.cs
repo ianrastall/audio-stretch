@@ -23,7 +23,7 @@ public sealed partial class UpdateService : IDisposable
     {
         _data = Path.GetFullPath(dataDirectory);
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("AudioStretch/0.2.1");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("AudioStretch/0.3.0");
     }
 
     public static Version ParseVersion(string value)

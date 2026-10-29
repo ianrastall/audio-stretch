@@ -1,6 +1,6 @@
 [package]
 name = "audio-stretch-core"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 
 [lib]
@@ -10,6 +10,8 @@ crate-type = ["rlib", "cdylib"]
 [dependencies]
 prost = "=0.14.4"
 serde_json = "=1.0.154"
+serde = { version = "=1.0.229", features = ["derive"] }
+sha2 = "=0.10.9"
 tempfile = "=3.27.0"
 same-file = "=1.0.6"
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }

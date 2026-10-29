@@ -2,7 +2,7 @@ param([switch]$Verify,[switch]$Install,[switch]$AppOnly,[string]$ToolsRoot='D:\a
 $ErrorActionPreference = 'Stop'
 if ($AppOnly -and $Install) { throw '-AppOnly and -Install cannot be combined.' }
 $root = Split-Path $PSScriptRoot -Parent
-$version = '0.2.1'
+$version = '0.3.0'
 Push-Location $root
 try {
  if ($Verify) {
@@ -23,7 +23,7 @@ try {
  Copy-Item -LiteralPath artifacts\update-host\AudioStretch.UpdateHost.exe -Destination $publish -Force
  Copy-Item -LiteralPath THIRD-PARTY-NOTICES.md -Destination $publish -Force
  Copy-Item -LiteralPath artifacts\cargo\x86_64-pc-windows-msvc\release\audio-stretch-cli.exe -Destination $publish -Force
- foreach ($name in @('AudioStretch.exe','AudioStretch.pri','MainWindow.xbf','SettingsWindow.xbf','audio_stretch_core.dll','coreclr.dll','Microsoft.UI.Xaml.dll','AudioStretch.UpdateHost.exe','tool-catalog.json')) {
+ foreach ($name in @('AudioStretch.exe','AudioStretch.pri','MainWindow.xbf','SettingsWindow.xbf','MapsWindow.xbf','HelpWindow.xbf','audio_stretch_core.dll','coreclr.dll','Microsoft.UI.Xaml.dll','AudioStretch.UpdateHost.exe','tool-catalog.json')) {
   if (-not (Test-Path -LiteralPath (Join-Path $publish $name))) { throw "Missing published file: $name" }
  }
  # Public installers distribute the app/runtimes. Audio tool archives come directly from upstream at first setup.
@@ -51,6 +51,8 @@ try {
   $managedTools = Get-Content artifacts\managed-test-tools.txt -Raw
   python tests\verify_audio.py $verification $managedTools
   if ($LASTEXITCODE) { throw 'Audio verification failed.' }
+  python tests\verify_r3.py $verification $managedTools
+  if ($LASTEXITCODE) { throw 'Full R3 verification failed.' }
  }
  if (-not $AppOnly) {
   $iscc = @((Get-Command ISCC -ErrorAction SilentlyContinue).Source,"$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe","${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1

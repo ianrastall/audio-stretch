@@ -25,4 +25,14 @@ The owner authorized release publication and network update checks/setup on 29 O
 
 Public installers include the app and managed runtimes; audio tools are installed explicitly from upstream after setup. This is a deliberate packaging change from the local 0.2.0 bundle. The setup UI and installation notes disclose the initial Internet requirement; offline processing remains available after setup. Tool mutation is blocked while this app is processing. Automatic checks are off by default, and never install software.
 
-Full R3 processing is now an authorized direction, with current implementation boundaries documented separately. R2-only options remain excluded from the R3 controls. Planned maps require mode-aware duration verification, not the current exact-offline-duration check applied unchanged.
+Full R3 processing is implemented in 0.3.0. R2-only options remain excluded from R3 controls. Offline duration tolerance is max(0.1 seconds, 0.01%); real-time file rendering allows 0.5 seconds + 2%, and always reports actual duration/error.
+
+## 0.3.0 maps and reproducibility
+
+The main focused utility retains optional sections. A separate map editing window uses the same 720x720 secondary-window placement and shared resources. Editable row pairs, native text import/export, unit conversion and normalized previews remain presentation; Rust owns all parsing, validation, normalization and option rules. Each map is bound to the decoded source frame count, rate and SHA-256. Replacing the source requires clearing the active maps. Map-family drafts are kept within the editor session; Apply selects one meaningful family.
+
+The Rubber Band 4.0.0 R3 implementation initializes the first map ratio by dividing target frame by source frame. Explicit `0 0` therefore causes NaN and resets the initial ratio. The editor accepts the implicit origin, while the normalized native map omits it and appends a validated final duration anchor. Time maps and real-time/pitch maps are rejected together, because upstream ignores time maps in real-time mode.
+
+Jobs and successful receipts capture the typed request and immutable maps. Receipts also include actual source/output hashes, tool versions/hashes, effective commands, duration error and clipping messages. Saved jobs disable overwrite and reject changed source identities; replay uses currently selected tool versions, with their hashes exposed for comparison. Exact bit-for-bit output across tool versions is not promised. Optional scripts use PowerShell literal argument quoting and call the shipped CLI through the same Rust authority.
+
+Compressed-source probes decode/count actual samples so map positions account for gapless delay/padding. This makes probing long lossy files more expensive. The supported CLI source/output/map limit is 2,147,483,647 sample frames, checked before rendering. No new visual exceptions are required.

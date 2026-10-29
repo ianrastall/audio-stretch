@@ -13,11 +13,12 @@ if (args.Contains("--live-release"))
 {
     string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jupiter", "AudioStretch");
     using var live = new UpdateService(data);
-    var check = await live.CheckAsync("0.2.0");
-    Check(check.Application?.Version == "0.2.1", "Published release discovered as upgrade from 0.2.0");
+    var check = await live.CheckAsync("0.2.1");
+    Check(check.Application?.Version == "0.3.0", "Published release discovered as upgrade from 0.2.1");
     string installer = await live.DownloadApplicationAsync(check.Application!);
     Check(await UpdateService.HasHash(installer, check.Application!.Sha256), "Published installer download hash verified");
-    foreach (var package in check.Catalog.Packages) await live.InstallToolAsync(package, new Progress<string>(Console.WriteLine));
+    if (args.Contains("--install-tools"))
+        foreach (var package in check.Catalog.Packages) await live.InstallToolAsync(package, new Progress<string>(Console.WriteLine));
     File.WriteAllText(Path.Combine(root, "artifacts", "live-update-verification.json"), JsonSerializer.Serialize(new { installer, hash = check.Application.Sha256, check.RubberBandUpstream, tools = live.ToolRoot }, UpdateService.JsonOptions));
     return;
 }

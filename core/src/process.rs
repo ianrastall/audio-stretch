@@ -54,6 +54,16 @@ pub fn run(
     cancel: &AtomicBool,
     timeout: Duration,
 ) -> Result<String, String> {
+    run_allowed(exe, args, cancel, timeout, &[0])
+}
+
+pub fn run_allowed(
+    exe: &Path,
+    args: &[String],
+    cancel: &AtomicBool,
+    timeout: Duration,
+    allowed: &[i32],
+) -> Result<String, String> {
     if cancel.load(Ordering::Acquire) {
         return Err("Cancelled".into());
     }
@@ -124,7 +134,7 @@ pub fn run(
     let bytes = output.lock().unwrap();
     let text = String::from_utf8_lossy(&bytes).into_owned();
     match outcome {
-        Ok(status) if status.success() => Ok(text),
+        Ok(status) if status.code().is_some_and(|code| allowed.contains(&code)) => Ok(text),
         Ok(status) => Err(format!("{} exited with {status}:\n{text}", exe.display())),
         Err(e) => Err(e),
     }

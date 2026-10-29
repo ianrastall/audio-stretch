@@ -2,7 +2,7 @@
 
 Read D:/jupiter/AGENTS.md, the canonical stack/style standards, README.md and HANDOFF.md. Preserve the original ianrastall/audio-stretch repository and public URL. WPF was intentionally removed; its history is not an active product requirement.
 
-- The owner authorized publishing a release now, then designing a complete Rubber Band R3 frontend using docs/rubberband-r3-help.xml. The earlier hold on public releases is superseded. Keep the current tempo workflow as the default; pitch/maps are planned capabilities, not implemented controls.
+- The owner authorized publishing a release now, then designing a complete Rubber Band R3 frontend using docs/rubberband-r3-help.xml. The earlier hold on public releases is superseded. Keep the current tempo workflow as the default; pitch/maps and meaningful R3 diagnostics are implemented in 0.3.0. Preserve source identity checks, mode-aware validation and the R3 implicit-origin time-map workaround.
 - Always use R3/Finer by default. R2-only/no-op switches must not become misleading R3 controls. No mastering/YouTube scope.
 - Windows 11 24H2+, x64; WinUI 3/C# + canonical Jupiter.UI; Rust audio core; generated protobuf / SafeHandle ABI 1. Never use NumberBox.
 - Build: pwsh -NoProfile -File build.ps1. Normal builds produce an installer; -AppOnly is development only. -Verify adds Rust checks, managed/native/update tests and measured audio tests. -Install installs locally. Dependencies/toolchains and lockfiles are pinned.

@@ -22,8 +22,8 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private Task? _probe;
     private bool _installing;
-    internal bool CanChangeTools => !_running && !_probing && !_installing && !_closing;
-    internal static string CurrentVersion => "0.2.1";
+    internal bool CanChangeTools => !_running && !_probing && !_installing && !_closing && (_mapsWindow is null || _mapsWindow.IsClosed);
+    internal static string CurrentVersion => "0.3.0";
     internal static string ToolRoot => Path.Combine(Preferences.DirectoryPath, "tools");
     private bool _ready, _running, _probing, _syncing, _autoOutput = true, _allowClose, _closing;
 
@@ -33,7 +33,7 @@ public sealed partial class MainWindow : Window
         Player.SetMediaPlayer(new Windows.Media.Playback.MediaPlayer());
         App.Themes.Attach(this); App.Accent.Attach(Root);
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AudioStretch.ico"));
-        Tempo.Text = Math.Clamp(App.Preferences.TempoChange, -75, 300).ToString("0.######", CultureInfo.CurrentCulture);
+        InitializeProcessing();
         Format.SelectedIndex = App.Preferences.Format == "flac" ? 1 : 0;
         Precision.SelectedIndex = App.Preferences.Encoding switch { "24" => 1, "16" => 2, _ => 0 };
         UpdatePrecision();
@@ -93,6 +93,8 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _timer.Stop();
+            if (_mapsWindow is { IsClosed: false }) _mapsWindow.Close();
+            if (_helpWindow is { IsClosed: false }) _helpWindow.Close();
             if (_settings is { IsClosed: false }) _settings.Close();
             Player.MediaPlayer.Dispose();
             try { SavePreferences(); Placement.Save(this, Root); } catch (Exception error) { App.LogError(error); }
@@ -101,45 +103,6 @@ public sealed partial class MainWindow : Window
     }
     private string FormatName => Format.SelectedIndex == 1 ? "flac" : "wav";
     private string EncodingName => (Precision.SelectedItem as ComboBoxItem)?.Tag as string ?? "float";
-    private bool TryTempo(out double value)
-    {
-        bool valid = double.TryParse(Tempo.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out value)
-            || double.TryParse(Tempo.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-        return valid && double.IsFinite(value) && value is >= -75 and <= 300;
-    }
-    private void UpdateTempo()
-    {
-        if (!_ready) return;
-        bool valid = TryTempo(out double change);
-        if (valid)
-        {
-            double speed = 1 + change / 100;
-            TempoSummary.Text = $"{speed:0.######}× speed" + (_info is null ? "" : $" · Output {TimeSpan.FromSeconds(_info.Duration / speed):g}");
-            TempoError.Visibility = Visibility.Collapsed;
-            _syncing = true; TempoSlider.Value = change; _syncing = false;
-        }
-        else TempoSummary.Text = "Enter a valid tempo change";
-        UpdateEnabled();
-    }
-    private void TempoChanged(object sender, TextChangedEventArgs e) { if (!_syncing) UpdateTempo(); }
-    private void TempoLostFocus(object sender, RoutedEventArgs e) => TempoError.Visibility = TryTempo(out _) ? Visibility.Collapsed : Visibility.Visible;
-    private void SliderChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (!_ready || _syncing) return;
-        Tempo.Text = e.NewValue.ToString("0.######", CultureInfo.CurrentCulture);
-    }
-    private void UpdateEnabled()
-    {
-        if (!_ready) return;
-        bool idle = CanChangeTools;
-        OpenButton.IsEnabled = idle;
-        Tempo.IsEnabled = TempoSlider.IsEnabled = Format.IsEnabled = Precision.IsEnabled = OutputPath.IsEnabled = OutputBrowse.IsEnabled = idle;
-        ExportButton.IsEnabled = idle && _core is not null && _info is not null && TryTempo(out _) && !string.IsNullOrWhiteSpace(OutputPath.Text);
-        CancelButton.IsEnabled = _running && !_closing;
-        PlaySource.IsEnabled = _info is not null && !_closing;
-        PlayOutput.IsEnabled = _result is not null && !_closing;
-        Progress.Visibility = _running || _probing ? Visibility.Visible : Visibility.Collapsed;
-    }
     private void UpdatePrecision()
     {
         if (Precision is null) return;
@@ -148,7 +111,7 @@ public sealed partial class MainWindow : Window
     }
     private void ExportChoiceChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!_ready) return;
+        if (!_ready || _syncing) return;
         UpdatePrecision();
         if (_autoOutput) DeriveOutput();
         else if (!string.IsNullOrEmpty(OutputPath.Text))
@@ -157,12 +120,12 @@ public sealed partial class MainWindow : Window
             catch (Exception error) { ShowError("Output path is invalid", error); }
             finally { _syncing = false; }
         }
-        UpdateEnabled();
+        RebuildPlan();
     }
     private void OutputChanged(object sender, TextChangedEventArgs e)
     {
         if (!_ready || _syncing) return;
-        _autoOutput = false; UpdateEnabled();
+        _autoOutput = false; RebuildPlan();
     }
     private void DeriveOutput()
     {
@@ -189,6 +152,8 @@ public sealed partial class MainWindow : Window
     private async Task Load(string path)
     {
         if (!CanChangeTools || _core is null) return;
+        if (!await ConfirmClearMaps()) return;
+        _maps = null; _receipt = _savedJob = null; _plan = null; ReplayCommand.Text = ResultDetails.Text = "";
         _probing = true; _info = null; _result = null;
         Player.MediaPlayer.Pause(); Player.MediaPlayer.Source = null;
         Player.Visibility = PlaybackLabel.Visibility = Visibility.Collapsed;
@@ -248,7 +213,9 @@ public sealed partial class MainWindow : Window
     private async Task Export()
     {
         if (!_ready || !CanChangeTools || _info is null || _core is null) return;
-        if (!TryTempo(out double tempo)) { TempoLostFocus(Tempo, new RoutedEventArgs()); return; }
+        Request request;
+        try { request = BuildRequest(); _plan = _core.Plan(request.Clone()); }
+        catch (Exception error) { ShowError("Render settings are invalid", error); return; }
         _running = true; UpdateEnabled(); MessageBar.IsOpen = false;
         try
         {
@@ -265,7 +232,8 @@ public sealed partial class MainWindow : Window
             // Release playback handles before a completed result could be replaced.
             Player.MediaPlayer.Pause(); Player.MediaPlayer.Source = null;
             Player.Visibility = PlaybackLabel.Visibility = Visibility.Collapsed;
-            var snapshot = _core.Start(new Request { Input = SourcePath.Text, Output = output, TempoChange = tempo, Encoding = EncodingName, Overwrite = overwrite, CentreFocus = App.Preferences.CentreFocus });
+            request.Output = output; request.Overwrite = overwrite;
+            var snapshot = _core.Start(request);
             ApplySnapshot(snapshot); _timer.Start();
         }
         catch (Exception error) { _running = false; UpdateEnabled(); ShowError("Export could not start", error); }
@@ -290,7 +258,7 @@ public sealed partial class MainWindow : Window
         if (s.State is "Completed" or "Failed" or "Cancelled")
         {
             _timer.Stop(); _running = false;
-            if (s.State == "Completed") { _result = s.Output; ProgressText.Text = "Completed · " + s.Output; }
+            if (s.State == "Completed") { _result = s.Output; _receipt = s.ReceiptJson; ProgressText.Text = "Completed · " + s.Output; ResultDetails.Text = $"Actual duration {s.ActualDuration:0.######}s · Difference from requested duration {s.DurationError:+0.######;-0.######;0}s"; PlanWarnings.Text = string.Join("\n", s.Warnings); }
             if (s.State == "Failed") ShowError("Export failed", new InvalidOperationException(s.Error));
             UpdateEnabled();
         }
@@ -309,7 +277,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error) { ShowError("Playback unavailable", error); }
     }
     private async void PlaySourceClicked(object sender, RoutedEventArgs e) { if (_info is not null) await Play(SourcePath.Text, "Source"); }
-    private async void PlayOutputClicked(object sender, RoutedEventArgs e) => await Play(_result, "Completed output");
+    private async void PlayOutputClicked(object sender, RoutedEventArgs e) { if (!_running && !_probing) await Play(_result, "Completed output"); }
     private void StopClicked(object sender, RoutedEventArgs e) { Player.MediaPlayer.Pause(); Player.MediaPlayer.Source = null; Player.Visibility = PlaybackLabel.Visibility = Visibility.Collapsed; }
     private void CopyLogClicked(object sender, RoutedEventArgs e) { var data = new DataPackage(); data.SetText(Log.Text); Clipboard.SetContent(data); }
     private void OpenSettings() { if (_settings is null || _settings.IsClosed) _settings = new SettingsWindow(this); _settings.Activate(); }
@@ -339,7 +307,7 @@ public sealed partial class MainWindow : Window
     private void ExitClicked(object sender, RoutedEventArgs e) => Close();
     private async void AboutClicked(object sender, RoutedEventArgs e)
     {
-        try { await ShowDialog(new ContentDialog { Title = "AudioStretch " + CurrentVersion, Content = "Tempo adjustment with pitch preserved.\nRubber Band R3/Finer · FFmpeg/FFprobe\nWindows 11 x64 · Jupiter\n\nSource: github.com/ianrastall/audio-stretch\nUpdate checks and audio tool installation are available in Settings.", CloseButtonText = "Close" }); }
+        try { await ShowDialog(new ContentDialog { Title = "AudioStretch " + CurrentVersion, Content = "Full Rubber Band R3 frontend.\nTime, pitch, formants and dynamic maps\nRubber Band R3/Finer · FFmpeg/FFprobe\nWindows 11 x64 · Jupiter\n\nSource: github.com/ianrastall/audio-stretch\nUpdate checks and audio tool installation are available in Settings.", CloseButtonText = "Close" }); }
         catch (Exception error) { ShowError("About window could not open", error); }
     }
     private async Task<ContentDialogResult> ShowDialog(ContentDialog dialog)
@@ -350,7 +318,7 @@ public sealed partial class MainWindow : Window
     }
     private void SavePreferences()
     {
-        if (TryTempo(out var tempo)) App.Preferences.TempoChange = tempo;
+        SaveProcessingPreferences();
         App.Preferences.Format = FormatName; App.Preferences.Encoding = EncodingName; App.Preferences.Save();
     }
     private void ShowError(string title, Exception error)
