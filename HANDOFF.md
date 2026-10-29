@@ -1,28 +1,36 @@
 # AudioStretch handoff
 
-29 October 2026.
+29 October 2026. Version 0.2.0, local evaluation before public release.
 
-## Current state
+## Direction
 
-This is the original `ianrastall/audio-stretch` repository, cloned with its history into `D:/jupiter/audio-stretch`. `origin` retains the original GitHub URL. `master` and `legacy-wpf` point to WPF head `a973c43`; the `jupiter` branch contains the rebuild planning records. No new application implementation or installer exists yet. The existing WPF files remain unchanged.
+The owner wants fresh application code in the original ianrastall/audio-stretch repository. Its public URL and history are retained. WPF is removed from the active source tree. This is a standalone tempo utility: pitch unchanged, always rubberband-r3 --fine. Local installation and listening evaluation precede any public GitHub release.
 
-The owner explicitly wants fresh code, repository continuity, tempo changes with pitch preserved, and Rubber Band R3 at the finest setting. Do not create a replacement GitHub repository. See [the confirmed direction and proposed implementation](docs/jupiter-project-brief.md) and [the source audit](docs/legacy-audit.md).
+## Implementation
 
-## Work completed
+- Rust core owns probe interpretation, tempo validation, float decode, R3 stretch, output encoding/validation, cancellation and destination safety. The CLI uses the same core.
+- WinUI 3/C# shell uses shared Jupiter.UI, generated protobuf and the SafeHandle managed client. Native ABI version is 1; calls on one engine are serialized. A worker publishes bounded status/log snapshots; cancellation is polled while supervising real tools in Windows jobs.
+- WAV float (default), WAV 24/16-bit, FLAC 24/16-bit. Sample rate/channels preserved for supported 8-192 kHz, 1-8 channel audio. Explicit final integer bit depth/dither; no source tags/artwork, EQ, loudness normalization or pitch control.
+- Open/drop, exact tempo text plus coarse slider, source/result playback, overwrite confirmation, cancel, copyable log, settings, saved placement. Actions/progress remain visible below the scrolling form.
+- Stable per-user Inno Setup installer, Start Menu AudioStretch, registered uninstaller; runtime/tools bundled. Build outputs are under artifacts/. No global installation of dependencies.
+- Settings: %LOCALAPPDATA%/Jupiter/AudioStretch/settings.json. Never delete settings or user audio during upgrades/uninstall.
 
-- Read the Jupiter workspace instructions and stack reference, the repository instructions/readme/build/project files and application source.
-- Identified the repository through GitHub, fetched its metadata and root listing, and cloned full history.
-- Inspected the existing SongLab documentation to distinguish its mastering scope from this standalone utility.
-- Checked the installed Rubber Band help and official upstream documentation: `--fine` selects R3; R2 crispness is not an additional R3 quality setting.
-- Created `jupiter` and `legacy-wpf` branches, leaving the default branch unchanged.
-- Added this handoff and `docs/jupiter-project-brief.md` / `docs/legacy-audit.md`. Added a branch-status note to the readme.
+## Commands and verification
 
-## Verification
+Run .\build.ps1 -Verify -Install in PowerShell 7. Normal builds produce the installer; -AppOnly is for development. Inno Setup 6, the pinned toolchains, sibling ../jupiter-ui and an existing tools root (default D:/app) are prerequisites. See README.md for individual build/test commands.
 
-Commands included `git clone`, `git log -5 --oneline`, `git branch -a`, `git remote -v`, `git status --short`, `git diff --check`, and `D:/app/rubberband/rubberband-r3.exe --help`. Read-only GitHub metadata and traffic queries also succeeded. The old application was not built or run, and no new GUI is claimed delivered. Validate branch ancestry and clean status after committing the planning records.
+Seven Rust tests, formatting, Clippy, managed/native integration and measured real-audio tests pass. The shared style check and self-contained Release publish pass. Tests cover cancellation during all three tool stages, preserving old output, output conflicts/aliases, changes during processing, missing tools, shutdown cleanup, Unicode paths, German numeric culture, stereo96/24 FLAC, lossy inputs and unchanged measured pitch. See docs/verification.md for measurements and installed acceptance status.
 
-## Next implementation work
+A Windows file-handle replacement bug found by the integration tests was fixed by opening comparison handles with delete sharing and releasing them before the final same-volume move. A first-run layout issue found visually was corrected by anchoring the actions/progress below the scrolling form. Integer dither specifies the target bit depth explicitly. Closing Settings and then the main window exposed a repeated-close exception; the shell now checks Settings.IsClosed and queues its final main-window close after cleanup. These corrections are in the current source.
 
-Read the full binding Jupiter style standard and Jupiter.UI integration instructions before UI work. Settle export formats/precision/metadata and stereo centre-focus defaults. Build a fresh Rust processing core and CLI first, proving floating-point decode, offline R3 stretch, safe destination commit and measured pitch/duration behavior. Then add the generated native boundary and WinUI/Jupiter.UI shell. Finish with an installed, verified Windows release in the same repository.
+## Files and repository
 
-Keep the legacy branch available throughout. Do not delete tracked sample media, invent a license, publish an unverified replacement to the default branch, or equate this planning pass with a finished application.
+New code lives in core/, cli/, proto/, src/, build/ and tests/. The old root WPF code/project/build script were retired; build.ps1 now forwards to the new build. Sample WAVs and original artwork remain preserved. Historical findings are in docs/legacy-audit.md; docs/jupiter-project-brief.md retains the original design context with a current-state note. docs/jupiter-exceptions.md records architecture and behavior decisions.
+
+The Jupiter implementation descends from original WPF head a973c43 and continues the same repository history. The installed replacement is integrated into master and jupiter; legacy-wpf is only a historical branch. Do not rewrite history or create a replacement repository. No public release is authorized before local evaluation is complete.
+
+Installed GUI export/playback, shared theme changes, settings preservation through update/uninstall/reinstall, Start registration and final installed-file hashes were verified. The final Settings-close guard was compiled and installed; its exact close sequence remains a manual regression check after desktop input/minimization interrupted the last automation pass. The app was left running, minimized, for the owner. See docs/verification.md for the distinction between observed passes and that remaining check.
+
+## Remaining limits
+
+Playback codec support depends on Windows. Tone checks do not prove perceptual quality for every song. Atomic approved replacement has a small external-writer race between destination recheck and final move. Forced OS/process termination can leave working folders for manual cleanup. The app is unsigned. Application licensing is unselected; matching third-party notices and corresponding source materials must be prepared before public binary distribution. Public source-build instructions also need a distributable Jupiter.UI source/package dependency; this machine currently uses the sibling shared workspace. User listening evaluation remains the next product step.

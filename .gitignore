@@ -36,3 +36,8 @@ publish/
 tools/
 AudioStretch.exe
 AudioStretch.pdb
+
+# Jupiter build outputs
+artifacts/
+target/
+work/

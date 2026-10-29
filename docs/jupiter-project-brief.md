@@ -1,6 +1,6 @@
 # AudioStretch Jupiter rebuild
 
-Recorded 29 October 2026. Status: discovery and repository setup; implementation has not begun.
+Recorded 29 October 2026. The discovery brief below is retained as design context. Implementation now exists; see the readme and verification record for current behavior. The owner subsequently confirmed removal of the active WPF source and local installation/evaluation before a public release. GitHub identity and history are retained.
 
 ## Confirmed direction
 

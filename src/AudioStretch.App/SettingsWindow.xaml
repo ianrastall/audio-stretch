@@ -1,0 +1,18 @@
+<Window x:Class="AudioStretch.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:jupiter="using:Jupiter.UI" Title="Settings - AudioStretch">
+ <Grid x:Name="Root" Background="{ThemeResource JupiterWindowBrush}">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+   <StackPanel Padding="24" Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+    <TextBlock Text="Settings" Style="{StaticResource JupiterPageHeadingTextStyle}"/>
+    <TextBlock Text="Appearance" Style="{StaticResource JupiterSectionHeadingTextStyle}"/>
+    <jupiter:ThemeSetting x:Name="ThemeControl"/>
+    <jupiter:AccentColorSetting x:Name="AccentControl"/>
+    <TextBlock Text="Audio" Style="{StaticResource JupiterSectionHeadingTextStyle}" Margin="0,16,0,0"/>
+    <CheckBox x:Name="CentreFocus" Content="Preserve stereo centre focus" Checked="CentreFocusChanged" Unchecked="CentreFocusChanged"/>
+    <TextBlock Text="Applies to future renders of stereo sources. Improves centre focus and mono compatibility, with a small tradeoff in individual channel fidelity. Off by default." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <TextBlock Text="Processing always uses Rubber Band R3/Finer. Source sample rate and channel count are preserved. Exported audio does not copy source tags or artwork." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error"/>
+    <Button Content="Close" Click="CloseClicked" HorizontalAlignment="Left"/>
+   </StackPanel>
+  </ScrollViewer>
+ </Grid>
+</Window>

@@ -1,0 +1,7 @@
+[package]
+name = "audio-stretch-cli"
+version = "0.2.0"
+edition = "2024"
+
+[dependencies]
+audio-stretch-core = { path = "../core" }

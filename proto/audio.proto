@@ -1,0 +1,36 @@
+syntax = "proto3";
+package audio;
+option csharp_namespace = "AudioStretch.Protocol";
+
+message Request {
+  uint64 request_id = 1;
+  string operation = 2;
+  string input = 3;
+  string output = 4;
+  double tempo_change = 5;
+  string encoding = 6;
+  bool overwrite = 7;
+  bool centre_focus = 8;
+}
+message AudioInfo {
+  uint32 sample_rate = 1;
+  uint32 channels = 2;
+  uint32 bit_depth = 3;
+  string codec = 4;
+  double duration = 5;
+  bool lossy = 6;
+}
+message Snapshot {
+  string state = 1;
+  string stage = 2;
+  string log = 3;
+  string output = 4;
+  double elapsed = 5;
+  string error = 6;
+}
+message Reply {
+  uint64 request_id = 1;
+  string error = 2;
+  AudioInfo info = 3;
+  Snapshot snapshot = 4;
+}
