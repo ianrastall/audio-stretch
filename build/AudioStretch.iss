@@ -1,5 +1,5 @@
 #ifndef AppVersion
- #define AppVersion "0.2.0"
+ #define AppVersion "0.2.1"
 #endif
 [Setup]
 AppId={{EA049E32-11ED-4EFA-B053-242223FC0D3E}
@@ -21,6 +21,7 @@ Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
+InfoAfterFile=..\docs\installation.txt
 AppMutex=Jupiter.AudioStretch
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

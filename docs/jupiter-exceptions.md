@@ -18,3 +18,11 @@
 - Working audio lives in a unique folder next to the output. An orderly cancel/failure/shutdown removes it. An OS crash or forced process termination can leave that folder for manual removal, while the source and final destination remain protected until publication.
 
 No visual exceptions are currently required.
+
+## 0.2.1 update and distribution decisions
+
+The owner authorized release publication and network update checks/setup on 29 October 2026. C# owns Windows package download/installation and app lifecycle updates; Rust remains the authority for audio processing. The update service uses only .NET base class libraries, with no additional third-party package dependency.
+
+Public installers include the app and managed runtimes; audio tools are installed explicitly from upstream after setup. This is a deliberate packaging change from the local 0.2.0 bundle. The setup UI and installation notes disclose the initial Internet requirement; offline processing remains available after setup. Tool mutation is blocked while this app is processing. Automatic checks are off by default, and never install software.
+
+Full R3 processing is now an authorized direction, with current implementation boundaries documented separately. R2-only options remain excluded from the R3 controls. Planned maps require mode-aware duration verification, not the current exact-offline-duration check applied unchanged.

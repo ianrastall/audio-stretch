@@ -150,6 +150,9 @@
           "Google.Protobuf": "[3.36.2, )"
         }
       },
+      "audiostretch.updates": {
+        "type": "Project"
+      },
       "jupiter.ui": {
         "type": "Project",
         "dependencies": {

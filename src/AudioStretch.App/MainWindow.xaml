@@ -19,11 +19,11 @@
     <MenuFlyoutItem Text="Stop playback" Click="StopClicked"/>
     <MenuFlyoutSeparator/><MenuFlyoutItem Text="Cancel render" Click="CancelClicked"/>
    </MenuBarItem>
-   <MenuBarItem Title="Help"><MenuFlyoutItem Text="About AudioStretch" Click="AboutClicked"/></MenuBarItem>
+   <MenuBarItem Title="Help"><MenuFlyoutItem Text="Check for updates…" Click="SettingsClicked"/><MenuFlyoutItem Text="About AudioStretch" Click="AboutClicked"/></MenuBarItem>
   </MenuBar>
   <ScrollViewer x:Name="FormScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
    <StackPanel Padding="24" Spacing="16" Width="{Binding ActualWidth, ElementName=FormScroll}" MaxWidth="688" HorizontalAlignment="Left">
-    <InfoBar x:Name="MessageBar" IsOpen="False" IsClosable="True"/>
+    <InfoBar x:Name="MessageBar" IsOpen="False" IsClosable="True"><InfoBar.ActionButton><Button x:Name="SetupTools" Content="Install audio tools…" Click="SetupToolsClicked" Visibility="Collapsed"/></InfoBar.ActionButton></InfoBar>
     <Grid ColumnSpacing="8">
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBox x:Name="SourcePath" Header="Source audio" IsReadOnly="True" PlaceholderText="Open an audio file or drop it here" MinWidth="240"/>

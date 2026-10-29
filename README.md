@@ -1,59 +1,65 @@
 # AudioStretch
 
-Change audio tempo while keeping pitch unchanged, using Rubber Band R3/Finer. A standalone Windows audio utility with a fresh WinUI 3 interface and Rust processing core. Follows Jupiter style standard 1.1 and imports the shared Jupiter.UI library.
+A Windows frontend for changing audio tempo with Rubber Band R3/Finer, preserving pitch. Fresh WinUI 3/C# interface and Rust processing core; follows Jupiter style standard 1.1 through the shared Jupiter.UI library.
 
-Version 0.2.0 is a local evaluation build. The WPF implementation has been removed from the active source tree; its history remains in this same repository. The GitHub repository and public URL are unchanged. No new public binary release has been published.
+## Install
+
+Download **AudioStretch-0.2.1-Setup.exe** from [Releases](https://github.com/ianrastall/audio-stretch/releases/latest). Requires Windows 11 24H2 or newer, x64. The installer includes .NET and Windows App SDK; no development tools are needed. Search Start for **AudioStretch** after installing.
+
+For a new installation, open **File > Settings > Updates and audio tools**, then select **Install Rubber Band** and **Install FFmpeg and FFprobe**. Packages download directly from their official upstream distributors. SHA-256 checks and executable version checks run before activation; upstream notices and previous tool payloads are preserved. Internet access is required for first setup. Audio processing stays local. Existing bundled tools from 0.2.0 remain usable.
+
+The release is unsigned. Settings and separately installed audio tools live under `%LOCALAPPDATA%/Jupiter/AudioStretch` and survive app upgrades/uninstall. User audio is never removed by the installer. Close the app before running an installer manually.
 
 ## Use
 
-Install AudioStretch-0.2.0-Setup.exe, then search Windows Start for **AudioStretch**. Requires Windows 11 24H2 or newer, x64. The installer includes .NET, Windows App SDK, FFmpeg, FFprobe, Rubber Band R3 and its companion DLL. No PATH setup or separate tool download is required. Processing runs locally without network access.
-
-1. Open an audio file or drop one onto the window.
-2. Set **Tempo (%)**: +5 means 1.05x speed, with an output duration of original duration / 1.05. Negative values slow it down. Exact typed values are supported from -75% to +300%; the slider offers coarse adjustment. Pitch stays unchanged.
+1. Open one audio file or drop it on the window.
+2. Set **Tempo (%)**: +5 means 1.05x speed and output duration = source duration / 1.05. Negative values slow it down. Exact typed values from -75% to +300% are accepted.
 3. Choose WAV or FLAC, sample precision and an output location.
-4. Select **Export...** or press F5. Existing destinations require confirmation. Use **Cancel render** to stop.
-5. Use **Play source** and **Play output** to compare, with the player's transport controls for seeking and pause. Playback codec availability depends on Windows; a playback failure does not prevent processing.
+4. Select **Export...** or F5. Confirm replacement if the destination exists. **Cancel render** preserves the previous output.
+5. Compare using **Play source** and **Play output**. Playback codec support depends on Windows; unavailable preview codecs do not prevent rendering.
 
-WAV supports 32-bit float (default), 24-bit or 16-bit. FLAC supports 24-bit or 16-bit. Source sample rate and channel count are preserved; supported input is 8-192 kHz, 1-8 channels. Working audio is floating-point. Integer export applies triangular dither at final quantization. No EQ, loudness normalization or automatic resampling is added. Source tags and artwork are not copied. Exporting a lossy source to WAV/FLAC avoids another lossy encode but cannot restore missing information.
+WAV supports 32-bit float (default), 24-bit and 16-bit. FLAC supports 24-bit and 16-bit. Source sample rate and channel count are preserved for supported 8-192 kHz, 1-8 channel input. Working audio is floating-point; final integer export uses triangular dither at the target precision. Tags/artwork are not copied. No EQ or loudness normalization is added. Lossless export does not restore information absent from a lossy source.
 
-All renders use the separate rubberband-r3 tool with explicit --fine. No R2 quality mode or pitch-shift control is exposed. **File > Settings** (Ctrl+,) provides the shared theme/accent controls and an optional stereo centre-focus setting; that setting applies to future renders and is off by default. It is a separate stereo imaging choice, not an extra R3 quality level.
+All renders explicitly invoke `rubberband-r3 --fine`. Pitch remains unchanged in this release. Optional stereo centre focus is in Settings and is off by default. The main actions and progress stay visible below the scrolling form. Logs are bounded and copyable. Files are validated before final publication; source aliases, unapproved overwrites and destinations changed during rendering are rejected.
 
-Rendering uses unique temporary files in the output folder and validates duration, sample rate and channels before publication. Source aliases and unapproved overwrites are rejected. Cancellation or failure preserves the previous output and cleans up working audio. External tools run in Windows jobs that terminate on application exit. Processing stages are shown without a fabricated percentage or ETA. The processing log is bounded and can be copied.
+## Updates
 
-Settings live at %LOCALAPPDATA%/Jupiter/AudioStretch/settings.json. Upgrades and uninstall preserve that folder and user audio. A stable per-user installer ID supports future upgrades. The application is unsigned; this build is for local evaluation before public release.
+**Help > Check for updates...** opens the settings window. Select **Check for updates** to check stable AudioStretch releases, the tested tool catalog and the official Rubber Band Windows download page. Daily checks on startup are optional and off by default; checking never installs anything or uploads audio.
 
-## Develop
+- **AudioStretch:** download the newer release's installer, verify its SHA-256, then use an external helper to wait for the app to exit, install and reopen it. Settings and audio are preserved. Failures are recorded and shown on the next launch.
+- **Rubber Band:** install/update independently from AudioStretch. A version is offered once its official archive/hash enters the tested catalog. Newer upstream versions outside that catalog are reported separately. New files are staged in their own version directory; activation changes only after hash/version validation. Failed/cancelled setup leaves the active version intact.
+- **FFmpeg/FFprobe:** the same verified package installer supplies the tested audio conversion tools. No PATH or machine-wide installation is changed.
 
-The working checkout is D:/jupiter/audio-stretch, continuing ianrastall/audio-stretch with full Git history. The GUI expects the sibling D:/jupiter/jupiter-ui shared library. Native processing, the CLI and core tests do not require the UI library.
+The catalog is [updates/tool-catalog.json](updates/tool-catalog.json); updating it can deliver a tested Rubber Band release without replacing the app. Current pinned packages are Rubber Band 4.0.0 and FFmpeg 8.1 essentials. Downloads retain the original archive and its notices in the user's data area. Tool installation is blocked while this app is rendering/probing.
 
-- core/: Rust validation, probing, audio pipeline, safe output handling, cancellation and ABI 1.
-- cli/: command-line frontend over the same core.
-- proto/audio.proto: source of generated Rust and C# request/reply messages.
-- src/AudioStretch.Interop/: managed SafeHandle boundary and typed client.
-- src/AudioStretch.App/: WinUI 3 shell, Windows file pickers/playback, settings and window placement.
-- build/: native build, self-contained publish and Inno Setup installer.
-- tests/: managed/native failure/cancellation checks and measured pitch/duration verification.
+## Full R3 frontend
 
-The repository pins Rust 1.97.0 and .NET SDK 10.0.113 to the installed, working Jupiter toolchain; Cargo and NuGet lockfiles capture dependencies. The Windows App SDK stays on the shared Jupiter.UI-compatible stable 2.5.1 baseline.
+This release provides the working tempo workflow and update infrastructure. The next expansion covers time/BPM/duration modes, independent pitch/formant control, dynamic time/pitch/frequency maps and meaningful R3 processing/diagnostic choices. See [the implementation plan](docs/full-r3-frontend.md), [all 33 CLI options mapped to frontend behavior](docs/r3-capability-matrix.md), and [the supplied XML manual](docs/rubberband-r3-help.xml). Planned controls are not advertised as implemented. R2-only switches will not be presented as R3 quality controls.
 
-From PowerShell 7 in this repository:
+## Build and verify
 
-```powershell
-.\build.ps1 -Verify -Install
-```
+Development root: `D:/jupiter/audio-stretch`. Runtime processing is in `core/`; `cli/` uses the same core; `proto/audio.proto` generates Rust/C# messages; `src/` contains the shell, SafeHandle bridge, update services and update host. Generated bindings and build artifacts are not edited by hand.
 
-The normal build produces artifacts/installer/AudioStretch-0.2.0-Setup.exe. -AppOnly produces the development publish without the installer. -ToolsRoot selects an existing tool root containing ffmpeg/ffmpeg.exe, ffmpeg/ffprobe.exe, rubberband/rubberband-r3.exe and rubberband/sndfile.dll; default D:/app. Tool hashes are recorded in artifacts/tool-manifest.json. Inno Setup 6 is required for packaging. No global tools are installed by the build.
+The source release ZIP includes sibling `audio-stretch/` and `jupiter-ui/` directories, including the exact shared UI source snapshot used for this release. GitHub's automatic repository-only source ZIP does not contain that separate dependency. Keep the two folders beside each other. Build prerequisites are pinned Rust 1.97.0, .NET SDK 10.0.113, Windows x64 build tools and Inno Setup 6. Audio tools are downloaded from upstream at runtime rather than bundled into the public installer.
 
-The native CLI also works without the GUI:
+From PowerShell 7 in the AudioStretch source directory:
 
 ```powershell
-.\artifacts\publish\audio-stretch-cli.exe .\artifacts\publish\tools D:\audio\input.wav D:\audio\output.wav 5 float
+.\build.ps1
 ```
 
-Arguments are tools folder, input, output, tempo change (%) and encoding (float, 24 or 16). Optional flags: --overwrite, --centre-focus. Output extension selects WAV or FLAC. Input/output paths supplied to the core must be absolute; use full paths for actual processing.
+Normal builds produce an installer. `-AppOnly` is for development. `-Install` installs the built app for the current account. `-Verify` runs Rust formatting/lint/tests, managed/native tests, updater tests and real pitch/duration measurements. Verification needs a local legacy tool root (`-ToolsRoot`, default `D:/app`) and downloads the catalog archives for isolated setup tests. No global dependencies are installed by the build. Cargo/NuGet lockfiles are tracked.
 
-See [verification](docs/verification.md), [decisions and exceptions](docs/jupiter-exceptions.md), [project brief](docs/jupiter-project-brief.md), [historical source audit](docs/legacy-audit.md) and [handoff](HANDOFF.md).
+The included CLI accepts a complete flat tools folder or the managed tools root:
 
-## Licensing and release
+```powershell
+.\audio-stretch-cli.exe "$env:LOCALAPPDATA\Jupiter\AudioStretch\tools" D:\audio\input.wav D:\audio\output.wav 5 float
+```
 
-No application license has been selected. See [third-party notices](THIRD-PARTY-NOTICES.md). Public binary release preparation must resolve application licensing and supply the matching tool distribution notices and corresponding-source materials for the exact bundled binaries. Local installation and user evaluation come first.
+Arguments are tools root, input, absolute output, tempo change (%) and encoding (`float`, `24` or `16`). Output extension selects WAV/FLAC. Optional flags: `--overwrite`, `--centre-focus`.
+
+See [verification](docs/verification-0.2.1.md), [decisions](docs/jupiter-exceptions.md), [historical audit](docs/legacy-audit.md) and [handoff](HANDOFF.md).
+
+## Notices
+
+See [third-party notices](THIRD-PARTY-NOTICES.md). The public installer distributes the AudioStretch application and its standard self-contained managed runtimes. Rubber Band and FFmpeg archives are fetched from their upstream distributors by the user-selected setup action, with upstream notices preserved. No additional application source license has been selected; public source availability is not itself a new license grant.

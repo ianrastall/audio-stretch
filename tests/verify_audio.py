@@ -11,8 +11,12 @@ import tempfile
 import wave
 
 publish = Path(sys.argv[1]).resolve()
-ffmpeg = publish / "tools/ffmpeg.exe"
-ffprobe = publish / "tools/ffprobe.exe"
+tools = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else publish / "tools"
+def tool(family, name):
+    active = tools / family / "active.txt"
+    return tools / family / "versions" / active.read_text().strip() / name if active.exists() else tools / name
+ffmpeg = tool("ffmpeg", "ffmpeg.exe")
+ffprobe = tool("ffmpeg", "ffprobe.exe")
 cli = publish / "audio-stretch-cli.exe"
 
 
@@ -54,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix="audio-stretch-verify-") as temp:
     original = hashlib.sha256(source.read_bytes()).hexdigest()
     for change, ext, precision in [(25, "wav", "float"), (-20, "flac", "24"), (5.125, "wav", "16")]:
         output = root / f"Result 音 {change}.{ext}"
-        run([cli, publish / "tools", source, output, change, precision])
+        run([cli, tools, source, output, change, precision])
         data = probe(output)
         stream = data["streams"][0]
         actual = float(data["format"]["duration"])
@@ -68,14 +72,14 @@ with tempfile.TemporaryDirectory(prefix="audio-stretch-verify-") as temp:
     hires = root / "stereo96.flac"
     run([ffmpeg, "-v", "error", "-i", source, "-ar", "96000", "-ac", "2", "-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24", hires])
     output = root / "stereo96-result.flac"
-    run([cli, publish / "tools", hires, output, "10", "24", "--centre-focus"])
+    run([cli, tools, hires, output, "10", "24", "--centre-focus"])
     info = probe(output)["streams"][0]
     assert int(info["sample_rate"]) == 96000 and info["channels"] == 2 and int(info["bits_per_raw_sample"]) == 24, info
     results.append({"case": "stereo96", "sample_rate": 96000, "channels": 2, "bit_depth": 24})
 
     lossy = root / "lossy.mp3"
     run([ffmpeg, "-v", "error", "-i", source, "-c:a", "libmp3lame", "-q:a", "2", lossy])
-    run([cli, publish / "tools", lossy, root / "from-mp3.wav", "-10", "24"])
+    run([cli, tools, lossy, root / "from-mp3.wav", "-10", "24"])
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original
     results.append({"case": "lossy-input-to-lossless", "passed": True})
 

@@ -1,0 +1,23 @@
+AudioStretch 0.2.1
+
+After installation, open AudioStretch from the Windows Start Menu.
+
+For a new installation, open File > Settings > Updates and audio tools.
+Select Install Rubber Band, then Install FFmpeg and FFprobe. These download
+verified packages directly from their upstream distributors. Internet access
+is needed for initial setup. Audio processing itself stays on your computer.
+
+Existing bundled audio tools from the local 0.2.0 build remain usable.
+New tool installations and settings are stored separately from the app and
+are preserved during updates and uninstall.
+
+Use Check for updates in Settings to check AudioStretch and Rubber Band.
+Automatic daily checks are optional and off by default. Checks never install
+anything automatically. The app updater closes AudioStretch, runs the
+verified installer, then reopens it.
+
+Open one audio file, set Tempo (%), choose WAV/FLAC and the output path,
+then select Export. R3/Finer is always used and pitch stays unchanged.
+
+Windows 11 24H2 or newer, x64, is required. This release is unsigned.
+Project and releases: https://github.com/ianrastall/audio-stretch

@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
  <PropertyGroup>
   <OutputType>WinExe</OutputType><TargetFramework>net10.0-windows10.0.26100.0</TargetFramework><TargetPlatformMinVersion>10.0.26100.0</TargetPlatformMinVersion>
-  <RootNamespace>AudioStretch</RootNamespace><AssemblyName>AudioStretch</AssemblyName><Product>AudioStretch</Product><Version>0.2.0</Version>
+  <RootNamespace>AudioStretch</RootNamespace><AssemblyName>AudioStretch</AssemblyName><Product>AudioStretch</Product><Version>0.2.1</Version>
+  <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   <ApplicationManifest>app.manifest</ApplicationManifest><ApplicationIcon>Assets\AudioStretch.ico</ApplicationIcon>
   <Platforms>x64</Platforms><Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform><RuntimeIdentifier>win-x64</RuntimeIdentifier>
   <UseWinUI>true</UseWinUI><WinUISDKReferences>false</WinUISDKReferences><EnableMsixTooling>true</EnableMsixTooling><WindowsPackageType>None</WindowsPackageType>
@@ -12,6 +13,9 @@
   <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
   <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
   <ProjectReference Include="..\AudioStretch.Interop\AudioStretch.Interop.csproj" />
+  <ProjectReference Include="..\AudioStretch.Updates\AudioStretch.Updates.csproj" />
+  <None Include="$(RepoRoot)updates\tool-catalog.json" Link="tool-catalog.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  <None Include="$(RepoRoot)docs\rubberband-r3-help.xml" Link="docs\rubberband-r3-help.xml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   <None Include="$(RepoRoot)artifacts\core\audio_stretch_core.dll" Link="audio_stretch_core.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   <None Update="Assets\AudioStretch.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
  </ItemGroup>

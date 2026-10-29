@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+ <ItemGroup><ProjectReference Include="..\..\src\AudioStretch.Updates\AudioStretch.Updates.csproj"/><ProjectReference Include="..\..\src\AudioStretch.Interop\AudioStretch.Interop.csproj"/><None Include="..\..\artifacts\core\audio_stretch_core.dll" Link="audio_stretch_core.dll" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+</Project>

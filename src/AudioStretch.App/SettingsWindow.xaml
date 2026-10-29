@@ -10,6 +10,19 @@
     <CheckBox x:Name="CentreFocus" Content="Preserve stereo centre focus" Checked="CentreFocusChanged" Unchecked="CentreFocusChanged"/>
     <TextBlock Text="Applies to future renders of stereo sources. Improves centre focus and mono compatibility, with a small tradeoff in individual channel fidelity. Off by default." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
     <TextBlock Text="Processing always uses Rubber Band R3/Finer. Source sample rate and channel count are preserved. Exported audio does not copy source tags or artwork." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <TextBlock Text="Updates and audio tools" Style="{StaticResource JupiterSectionHeadingTextStyle}" Margin="0,16,0,0"/>
+    <TextBlock x:Name="ApplicationVersion" Style="{StaticResource JupiterBodyTextStyle}" TextWrapping="Wrap"/>
+    <CheckBox x:Name="AutomaticChecks" Content="Check for updates once a day when AudioStretch opens" Checked="AutomaticChecksChanged" Unchecked="AutomaticChecksChanged"/>
+    <TextBlock Text="Checks contact GitHub and the Rubber Band download site. Downloads and installation happen only when you select an install button. Audio files are never uploaded." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="CheckButton" Content="Check for updates" Click="CheckClicked"/><Button x:Name="AppInstall" Content="Install AudioStretch update…" Click="AppInstallClicked" IsEnabled="False"/></StackPanel>
+    <TextBlock x:Name="RubberBandVersion" Style="{StaticResource JupiterBodyTextStyle}" TextWrapping="Wrap"/>
+    <Button x:Name="RubberBandInstall" Content="Install Rubber Band" Click="RubberBandInstallClicked" HorizontalAlignment="Left"/>
+    <TextBlock x:Name="FfmpegVersion" Style="{StaticResource JupiterBodyTextStyle}" TextWrapping="Wrap"/>
+    <Button x:Name="FfmpegInstall" Content="Install FFmpeg and FFprobe" Click="FfmpegInstallClicked" HorizontalAlignment="Left"/>
+    <TextBlock Text="Audio tools download directly from their official upstream packages. SHA-256 and executable versions are checked before activation. Previous versions and their notices remain in your AudioStretch data folder. New upstream Rubber Band versions are offered for installation after they enter the tested tool catalog." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap"/>
+    <TextBlock x:Name="UpdateStatus" Text="Select Check for updates to contact the release sources." Style="{StaticResource JupiterCaptionTextStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+    <ProgressBar x:Name="UpdateProgress" IsIndeterminate="True" Visibility="Collapsed"/>
+    <Button x:Name="CancelUpdate" Content="Cancel download or check" Click="CancelUpdateClicked" Visibility="Collapsed" HorizontalAlignment="Left"/>
     <InfoBar x:Name="ErrorBar" IsOpen="False" Severity="Error"/>
     <Button Content="Close" Click="CloseClicked" HorizontalAlignment="Left"/>
    </StackPanel>

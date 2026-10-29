@@ -1,6 +1,7 @@
 using System.Globalization;
 using AudioStretch.Interop;
 using AudioStretch.Protocol;
+using AudioStretch.Updates;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -20,6 +21,10 @@ public sealed partial class MainWindow : Window
     private SettingsWindow? _settings;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private Task? _probe;
+    private bool _installing;
+    internal bool CanChangeTools => !_running && !_probing && !_installing && !_closing;
+    internal static string CurrentVersion => "0.2.1";
+    internal static string ToolRoot => Path.Combine(Preferences.DirectoryPath, "tools");
     private bool _ready, _running, _probing, _syncing, _autoOutput = true, _allowClose, _closing;
 
     public MainWindow()
@@ -36,17 +41,37 @@ public sealed partial class MainWindow : Window
         shortcut.Invoked += (_, e) => { OpenSettings(); e.Handled = true; };
         Root.KeyboardAccelerators.Add(shortcut);
         _timer.Tick += (_, _) => Poll();
-        Root.Loaded += (_, _) =>
+        Root.Loaded += async (_, _) =>
         {
             Placement.Restore(this, Root);
             try
             {
-                _core = new CoreClient(Path.Combine(AppContext.BaseDirectory, "tools"));
-                foreach (var tool in new[] { "ffmpeg.exe", "ffprobe.exe", "rubberband-r3.exe", "sndfile.dll" })
-                    if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "tools", tool))) throw new IOException($"Missing {tool}. Reinstall AudioStretch to restore its audio tools.");
+                _core = new CoreClient(ToolRoot);
+                RefreshToolStatus();
+                string result = Path.Combine(Preferences.DirectoryPath, "update-result.json");
+                if (File.Exists(result))
+                {
+                    using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(result));
+                    MessageBar.Title = document.RootElement.GetProperty("Success").GetBoolean() ? "Update completed" : "Update did not complete";
+                    MessageBar.Message = document.RootElement.GetProperty("Message").GetString(); MessageBar.IsOpen = true;
+                }
             }
             catch (Exception error) { ShowError("Audio tools could not start", error); }
             _ready = true; UpdateTempo(); UpdateEnabled();
+            if (App.Preferences.CheckUpdatesAutomatically && (App.Preferences.LastUpdateCheck is null || DateTimeOffset.UtcNow - App.Preferences.LastUpdateCheck > TimeSpan.FromDays(1)))
+            {
+                try
+                {
+                    using var service = new UpdateService(Preferences.DirectoryPath);
+                    var check = await service.CheckAsync(CurrentVersion);
+                    App.Preferences.LastUpdateCheck = check.CheckedAt; App.Preferences.Save();
+                    string? rbPath = service.ResolveTool("rubberband-r3.exe", Path.Combine(AppContext.BaseDirectory, "tools"));
+                    string rbVersion = rbPath is null ? "0.0" : await UpdateService.ReadVersionAsync(rbPath, "--version", CancellationToken.None);
+                    if (check.Application is not null || UpdateService.IsNewer(check.RubberBandUpstream, rbVersion))
+                    { MessageBar.Title = "An update is available"; MessageBar.Message = "Open File > Settings > Updates and audio tools to review and install it."; MessageBar.Severity = InfoBarSeverity.Informational; MessageBar.IsOpen = true; }
+                }
+                catch (Exception error) { Status.Text = "Update check failed · check Settings for a manual retry"; App.LogError(error); }
+            }
         };
         Player.MediaPlayer.MediaFailed += (_, e) => DispatcherQueue.TryEnqueue(() => ShowError("Playback unavailable", new InvalidOperationException(e.ErrorMessage + " Rendering is still available.")));
         AppWindow.Closing += async (_, e) =>
@@ -58,6 +83,7 @@ public sealed partial class MainWindow : Window
             try
             {
                 if (_probe is not null) await _probe;
+                if (_installing) { _settings?.CancelWork(); while (_installing) await Task.Delay(50); }
                 if (_running) _core?.Cancel();
                 await Task.Run(() => _core?.Dispose());
             }
@@ -105,7 +131,7 @@ public sealed partial class MainWindow : Window
     private void UpdateEnabled()
     {
         if (!_ready) return;
-        bool idle = !_running && !_probing && !_closing;
+        bool idle = CanChangeTools;
         OpenButton.IsEnabled = idle;
         Tempo.IsEnabled = TempoSlider.IsEnabled = Format.IsEnabled = Precision.IsEnabled = OutputPath.IsEnabled = OutputBrowse.IsEnabled = idle;
         ExportButton.IsEnabled = idle && _core is not null && _info is not null && TryTempo(out _) && !string.IsNullOrWhiteSpace(OutputPath.Text);
@@ -149,7 +175,7 @@ public sealed partial class MainWindow : Window
     private async void OpenShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await PickSource(); }
     private async Task PickSource()
     {
-        if (!_ready || _running || _probing || _closing) return;
+        if (!_ready || !CanChangeTools) return;
         try
         {
             var picker = new FileOpenPicker();
@@ -162,7 +188,7 @@ public sealed partial class MainWindow : Window
     }
     private async Task Load(string path)
     {
-        if (_running || _probing || _closing || _core is null) return;
+        if (!CanChangeTools || _core is null) return;
         _probing = true; _info = null; _result = null;
         Player.MediaPlayer.Pause(); Player.MediaPlayer.Source = null;
         Player.Visibility = PlaybackLabel.Visibility = Visibility.Collapsed;
@@ -194,7 +220,7 @@ public sealed partial class MainWindow : Window
     private void RootDragOver(object sender, DragEventArgs e) { e.AcceptedOperation = !_running && !_probing && e.DataView.Contains(StandardDataFormats.StorageItems) ? DataPackageOperation.Copy : DataPackageOperation.None; }
     private async void RootDrop(object sender, DragEventArgs e)
     {
-        if (_running || _probing || _closing) return;
+        if (!CanChangeTools) return;
         try
         {
             if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
@@ -206,7 +232,7 @@ public sealed partial class MainWindow : Window
     }
     private async void OutputBrowseClicked(object sender, RoutedEventArgs e)
     {
-        if (_running || _probing || _closing) return;
+        if (!CanChangeTools) return;
         try
         {
             var picker = new FileSavePicker { SuggestedFileName = string.IsNullOrWhiteSpace(OutputPath.Text) ? "stretched" : Path.GetFileNameWithoutExtension(OutputPath.Text) };
@@ -221,7 +247,7 @@ public sealed partial class MainWindow : Window
     private async void ExportShortcut(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs e) { e.Handled = true; await Export(); }
     private async Task Export()
     {
-        if (!_ready || _running || _probing || _closing || _info is null || _core is null) return;
+        if (!_ready || !CanChangeTools || _info is null || _core is null) return;
         if (!TryTempo(out double tempo)) { TempoLostFocus(Tempo, new RoutedEventArgs()); return; }
         _running = true; UpdateEnabled(); MessageBar.IsOpen = false;
         try
@@ -286,12 +312,34 @@ public sealed partial class MainWindow : Window
     private async void PlayOutputClicked(object sender, RoutedEventArgs e) => await Play(_result, "Completed output");
     private void StopClicked(object sender, RoutedEventArgs e) { Player.MediaPlayer.Pause(); Player.MediaPlayer.Source = null; Player.Visibility = PlaybackLabel.Visibility = Visibility.Collapsed; }
     private void CopyLogClicked(object sender, RoutedEventArgs e) { var data = new DataPackage(); data.SetText(Log.Text); Clipboard.SetContent(data); }
-    private void OpenSettings() { if (_settings is null || _settings.IsClosed) _settings = new SettingsWindow(); _settings.Activate(); }
+    private void OpenSettings() { if (_settings is null || _settings.IsClosed) _settings = new SettingsWindow(this); _settings.Activate(); }
+    private void SetupToolsClicked(object sender, RoutedEventArgs e) => OpenSettings();
+    internal void RefreshToolStatus()
+    {
+        using var service = new UpdateService(Preferences.DirectoryPath);
+        bool ready = new[] { "ffmpeg.exe", "ffprobe.exe", "rubberband-r3.exe", "sndfile.dll" }.All(n => service.ResolveTool(n, Path.Combine(AppContext.BaseDirectory, "tools")) is not null);
+        SetupTools.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
+        if (!ready) { MessageBar.Severity = InfoBarSeverity.Informational; MessageBar.Title = "Audio tools need to be installed"; MessageBar.Message = "Open Settings and install FFmpeg and Rubber Band from their official download packages. Internet access is needed for setup; audio processing stays local."; MessageBar.IsOpen = true; }
+        else if (MessageBar.Title == "Audio tools need to be installed") MessageBar.IsOpen = false;
+    }
+    internal async Task InstallTool(ToolPackage package, IProgress<string> progress, CancellationToken ct)
+    {
+        if (!CanChangeTools) throw new InvalidOperationException("Finish or cancel the current operation before changing audio tools.");
+        _installing = true; UpdateEnabled();
+        try { using var service = new UpdateService(Preferences.DirectoryPath); await service.InstallToolAsync(package, progress, ct); RefreshToolStatus(); }
+        finally { _installing = false; UpdateEnabled(); }
+    }
+    internal void ApplyApplicationUpdate(string installer, string hash)
+    {
+        if (!CanChangeTools) throw new InvalidOperationException("Finish the current operation before installing an update.");
+        UpdateService.LaunchApplicationInstaller(installer, hash, Path.Combine(AppContext.BaseDirectory, "AudioStretch.UpdateHost.exe"));
+        Close();
+    }
     private void SettingsClicked(object sender, RoutedEventArgs e) => OpenSettings();
     private void ExitClicked(object sender, RoutedEventArgs e) => Close();
     private async void AboutClicked(object sender, RoutedEventArgs e)
     {
-        try { await ShowDialog(new ContentDialog { Title = "AudioStretch 0.2.0", Content = "Tempo adjustment with pitch preserved.\nRubber Band R3/Finer · FFmpeg/FFprobe\nWindows 11 x64 · Jupiter\n\nLocal evaluation build. Source: github.com/ianrastall/audio-stretch\nThird-party notices are included in the installation folder.", CloseButtonText = "Close" }); }
+        try { await ShowDialog(new ContentDialog { Title = "AudioStretch " + CurrentVersion, Content = "Tempo adjustment with pitch preserved.\nRubber Band R3/Finer · FFmpeg/FFprobe\nWindows 11 x64 · Jupiter\n\nSource: github.com/ianrastall/audio-stretch\nUpdate checks and audio tool installation are available in Settings.", CloseButtonText = "Close" }); }
         catch (Exception error) { ShowError("About window could not open", error); }
     }
     private async Task<ContentDialogResult> ShowDialog(ContentDialog dialog)

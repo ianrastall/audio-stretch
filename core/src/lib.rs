@@ -84,10 +84,44 @@ impl Tools {
         }
     }
     fn exe(&self, name: &str) -> Result<PathBuf, String> {
+        let family = if name == "rubberband-r3" {
+            "rubberband"
+        } else {
+            "ffmpeg"
+        };
+        if let Ok(key) = fs::read_to_string(self.directory.join(family).join("active.txt")) {
+            let key = key.trim();
+            if !key.is_empty()
+                && key.len() < 120
+                && key != "."
+                && key != ".."
+                && key
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+            {
+                let candidate = self
+                    .directory
+                    .join(family)
+                    .join("versions")
+                    .join(key)
+                    .join(format!("{name}.exe"));
+                if candidate.is_file() {
+                    return Ok(candidate);
+                }
+            }
+        }
         let path = self.directory.join(format!("{name}.exe"));
         if !path.is_file() {
+            if let Ok(exe) = std::env::current_exe()
+                && let Some(parent) = exe.parent()
+            {
+                let bundled = parent.join("tools").join(format!("{name}.exe"));
+                if bundled.is_file() {
+                    return Ok(bundled);
+                }
+            }
             return Err(format!(
-                "Missing {name}. Reinstall AudioStretch to restore its audio tools."
+                "Missing {name}. Open File > Settings > Updates and audio tools to install it."
             ));
         }
         Ok(path)

@@ -19,14 +19,14 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "audio-stretch-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "audio-stretch-core",
 ]
 
 [[package]]
 name = "audio-stretch-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "prost",
  "prost-build",

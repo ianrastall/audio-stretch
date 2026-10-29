@@ -13,6 +13,8 @@ public sealed class Preferences : IThemePreferences, IAccentPreferences
     public string Format { get; set; } = "wav";
     public string Encoding { get; set; } = "float";
     public bool CentreFocus { get; set; }
+    public bool CheckUpdatesAutomatically { get; set; }
+    public DateTimeOffset? LastUpdateCheck { get; set; }
     public string? LastFolder { get; set; }
     public int X { get; set; } = int.MinValue;
     public int Y { get; set; } = int.MinValue;
