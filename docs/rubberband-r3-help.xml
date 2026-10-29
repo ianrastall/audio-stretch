@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<help:manual
+    xmlns:help="urn:ucerl:help:1"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xml:id="rubberband-r3-help"
+    xml:lang="en"
+    product="rubberband-r3"
+    product-version="4.0.0"
+    document-version="1.0.0">
+
+  <help:metadata xml:id="metadata">
+    <help:title>Rubber Band 4.0.0: Complete Command-Line Help</help:title>
+    <help:subtitle>Offline time stretching, tempo conversion, pitch shifting, and dynamic ratio maps</help:subtitle>
+    <help:abstract>
+      rubberband-r3 reads one audio file through libsndfile, changes duration and pitch independently with the
+      Rubber Band R2 or R3 engine, and writes one output file. This manual covers every option accepted by the
+      local executable, ratio and map semantics, engine-specific tuning, output-format selection, clipping
+      recovery, processing passes, diagnostics, exit behavior, and reproducible workflows.
+    </help:abstract>
+    <help:document-status>Verified against the local executable's --help, --full-help, and --version output and the upstream v4.0.0 command-line source.</help:document-status>
+    <help:last-verified date="2026-08-11" timezone="America/Chicago"/>
+    <help:local-artifact>
+      <help:path>D:\app\rubberband\rubberband-r3.exe</help:path>
+      <help:size unit="bytes">636416</help:size>
+      <help:sha256>F4CD498F36E22E624268E3E5AA47803449CB786F7850B83DDD26324162FCDB8A</help:sha256>
+      <help:reported-version>4.0.0</help:reported-version>
+    </help:local-artifact>
+    <help:upstream-source tag="v4.0.0" commit="1d95888bec3ae0a17c0c4af791810d5a63f6bc35"/>
+    <help:verification-notes>
+      <help:note>The local executable name ends in -r3.exe, so R3 is selected unless --fast is given.</help:note>
+      <help:note>Normal and full help are written to standard error and return status 2; --version returns status 0.</help:note>
+      <help:note>Parser, precedence, map parsing, format selection, clipping restart, and return paths were checked against main/main.cpp at v4.0.0.</help:note>
+    </help:verification-notes>
+    <help:authors>
+      <help:author role="software-author">Chris Cannam and Particular Programs Ltd.</help:author>
+      <help:author role="help-author">OpenAI Codex</help:author>
+    </help:authors>
+    <help:license-summary>
+      Rubber Band is available under the GNU General Public License, version 2 or later, or under a separately
+      obtained commercial license. The command-line utility also uses libsndfile. Consult
+      <help:xref ref="source-license">the upstream license</help:xref> for authoritative terms.
+    </help:license-summary>
+    <help:companion-documents>
+      <help:companion xlink:href="sox-help.xml">SoX help for audio conversion, inspection, synthesis, and effects before or after stretching.</help:companion>
+    </help:companion-documents>
+  </help:metadata>
+
+  <help:semantic-model xml:id="semantic-model" audience="maintainer integrator">
+    <help:title>Reference model</help:title>
+    <help:description>Every accepted switch has a stable ID. Rules capture parser requirements and option precedence; workflows and troubleshooting link back to those IDs; sources identify the local and upstream evidence.</help:description>
+    <help:authority>The exact local v4.0.0 executable and matching v4.0.0 source outrank generic or newer online examples.</help:authority>
+  </help:semantic-model>
+
+  <help:navigation xml:id="navigation">
+    <help:entry ref="quick-start" label="Quick start"/>
+    <help:entry ref="invocation-model" label="Invocation and ratios"/>
+    <help:entry ref="map-files" label="Dynamic maps"/>
+    <help:entry ref="processing-model" label="Processing and output"/>
+    <help:entry ref="crispness-model" label="R2 crispness presets"/>
+    <help:entry ref="option-catalog" label="Complete option catalog"/>
+    <help:entry ref="constraints" label="Constraints and precedence"/>
+    <help:entry ref="workflows" label="Recipes"/>
+    <help:entry ref="troubleshooting" label="Troubleshooting"/>
+    <help:entry ref="glossary" label="Glossary"/>
+    <help:entry ref="relationship-graph" label="Relationships"/>
+    <help:entry ref="index" label="Index"/>
+    <help:entry ref="sources" label="Evidence"/>
+  </help:navigation>
+
+  <help:topic xml:id="quick-start" kind="task" task="stretch-and-pitch">
+    <help:title>Quick start</help:title>
+    <help:syntax><![CDATA[rubberband-r3.exe [options] <infile> <outfile>]]></help:syntax>
+    <help:example xml:id="example-basic"><help:command><![CDATA[& 'D:\app\rubberband\rubberband-r3.exe' --time 1.5 --pitch 2 input.wav output.wav]]></help:command><help:description>Make the recording 50% longer and transpose it upward by two semitones with the default R3 engine.</help:description></help:example>
+    <help:requirements>
+      <help:item>Supply exactly one input and one output positional argument.</help:item>
+      <help:item>Supply at least one time, pitch, frequency, pitch-map, or frequency-map option; a neutral value such as <help:code>--pitch 0</help:code> satisfies the parser.</help:item>
+      <help:item>Use a positive aggregate time ratio. Input and output must be formats supported by the bundled libsndfile.</help:item>
+    </help:requirements>
+  </help:topic>
+
+  <help:topic xml:id="invocation-model" kind="concept">
+    <help:title>Ratios, tempo, duration, and pitch</help:title>
+    <help:description>
+      Time and frequency are independent. A time ratio above 1 lengthens the output; a tempo multiplier above 1
+      shortens it because tempo X maps to time ratio 1/X. Repeated --time and --tempo values multiply into one
+      ratio. --duration is resolved after the input header is opened and replaces that accumulated ratio with
+      requested-seconds/input-seconds. Semitone pitch and frequency multipliers combine multiplicatively using
+      frequency-ratio = frequency × 2^(semitones/12).
+    </help:description>
+    <help:formulas>
+      <help:formula name="tempo-to-time">time ratio = 1 / tempo multiplier</help:formula>
+      <help:formula name="tempo-transition">--tempo X:Y gives time ratio X / Y</help:formula>
+      <help:formula name="duration">time ratio = requested duration / input duration</help:formula>
+      <help:formula name="pitch">frequency ratio = --frequency × 2^(--pitch / 12)</help:formula>
+    </help:formulas>
+    <help:exit-statuses>
+      <help:status value="0">Processing completed, or --version was requested.</help:status>
+      <help:status value="1">Invalid ratio, conflicting maps, file/map open or format failure, malformed map, or another processing error.</help:status>
+      <help:status value="2">Help/full-help, missing transformation, unknown option, or wrong positional-argument count.</help:status>
+    </help:exit-statuses>
+  </help:topic>
+
+  <help:topic xml:id="map-files" kind="reference">
+    <help:title>Dynamic time, pitch, and frequency maps</help:title>
+    <help:map kind="time" option-ref="opt-timemap">
+      <help:syntax>source_frame target_frame</help:syntax>
+      <help:description>Each nonblank line maps an input sample-frame number to its target output frame. The points define a varying stretch factor. Also supply --time, --tempo, or --duration to establish total duration.</help:description>
+    </help:map>
+    <help:map kind="pitch" option-ref="opt-pitchmap">
+      <help:syntax>input_frame semitone_offset</help:syntax>
+      <help:description>Offsets are relative to the initial --pitch/--frequency setting, not cumulative. The implementation converts each offset with 2^(offset/12).</help:description>
+    </help:map>
+    <help:map kind="frequency" option-ref="opt-freqmap">
+      <help:syntax>input_frame frequency_multiplier</help:syntax>
+      <help:description>The second column is a direct frequency multiplier. A pitch map and a frequency map cannot be used together.</help:description>
+    </help:map>
+    <help:notes>
+      <help:item>Columns are separated by at least one literal space; leading spaces and blank lines are accepted.</help:item>
+      <help:item>Later entries for the same frame replace earlier entries because maps are keyed by frame number.</help:item>
+      <help:item>Pitch/frequency maps force real-time mode and high-consistency pitch processing; exact duration is therefore not guaranteed.</help:item>
+    </help:notes>
+  </help:topic>
+
+  <help:topic xml:id="processing-model" kind="concept">
+    <help:title>Processing passes, formats, and clipping</help:title>
+    <help:stages>
+      <help:stage xml:id="stage-parse" ordinal="1" name="parse"><help:description>Parse options, resolve engine defaults and precedence, and read map files.</help:description></help:stage>
+      <help:stage xml:id="stage-open" ordinal="2" name="open"><help:description>Open input with libsndfile, derive --duration if present, and open the output.</help:description></help:stage>
+      <help:stage xml:id="stage-study" ordinal="3" name="study"><help:description>In offline mode only, make a complete analysis pass and calculate the stretch profile.</help:description></help:stage>
+      <help:stage xml:id="stage-process" ordinal="4" name="process"><help:description>Process 1024-frame blocks, apply key-frame or frequency changes, compensate start delay, and write interleaved samples.</help:description></help:stage>
+      <help:stage xml:id="stage-retry" ordinal="5" name="clip-retry"><help:description>By default, restart from the beginning with reduced gain when clipping is detected, down to a minimum gain of 0.75; thereafter clamp.</help:description></help:stage>
+      <help:stage xml:id="stage-report" ordinal="6" name="report"><help:description>Unless quiet, report input/output frames, achieved ratio, duration error, elapsed time, and throughput.</help:description></help:stage>
+    </help:stages>
+    <help:format-policy>
+      <help:item>If input and output extensions are identical, the output inherits the input format.</help:item>
+      <help:item>If extensions differ and libsndfile recognizes the output extension, the utility selects that container with 24-bit PCM.</help:item>
+      <help:item>If the output extension is unknown, it warns and uses the input format.</help:item>
+      <help:item>Output sample rate and channel count match the input.</help:item>
+    </help:format-policy>
+  </help:topic>
+
+  <help:topic xml:id="crispness-model" kind="reference">
+    <help:title>R2 crispness presets</help:title>
+    <help:description>These presets apply to R2. Supplying --crisp overrides separately supplied transient, detector, lamination, and window switches.</help:description>
+    <help:levels>
+      <help:level value="0" name="Mushy">--no-transients --no-lamination --window-long</help:level>
+      <help:level value="1" name="Piano">--detector-soft --no-lamination --window-long</help:level>
+      <help:level value="2" name="Smooth">--no-transients --no-lamination</help:level>
+      <help:level value="3" name="Balanced multitimbral mixture">--no-transients</help:level>
+      <help:level value="4" name="Unpitched percussion with stable notes">--bl-transients</help:level>
+      <help:level value="5" name="Crisp monophonic instrumental">Default processing options.</help:level>
+      <help:level value="6" name="Unpitched solo percussion">--no-lamination --window-short</help:level>
+    </help:levels>
+  </help:topic>
+
+  <help:option-catalog xml:id="option-catalog">
+    <help:title>Complete option catalog</help:title>
+    <help:category xml:id="cat-ratios" name="Time and pitch ratios">
+      <help:option xml:id="opt-time" short="-t" long="--time" argument="RATIO" repeatable="yes" evidence-refs="source-full-help source-main"><help:summary>Stretch to RATIO times the original duration.</help:summary><help:detail>Repeated values multiply. Values may be attached to -t or supplied separately.</help:detail></help:option>
+      <help:option xml:id="opt-tempo" short="-T" long="--tempo" argument="MULTIPLIER|X:Y" repeatable="yes" evidence-refs="source-full-help source-main"><help:summary>Change tempo by MULTIPLIER, or from X to Y.</help:summary><help:detail>A single value contributes 1/X to the time ratio; X:Y contributes X/Y.</help:detail></help:option>
+      <help:option xml:id="opt-duration" short="-D" long="--duration" argument="SECONDS" units="seconds" evidence-refs="source-full-help source-main"><help:summary>Make the output approximately SECONDS long.</help:summary><help:interaction>After the input header is read, this replaces any ratio accumulated from --time or --tempo.</help:interaction></help:option>
+      <help:option xml:id="opt-pitch" short="-p" long="--pitch" argument="SEMITONES" units="semitones" repeatable="last-wins" evidence-refs="source-full-help source-main"><help:summary>Raise pitch by SEMITONES; negative values lower it.</help:summary><help:interaction>Combines multiplicatively with --frequency.</help:interaction></help:option>
+      <help:option xml:id="opt-frequency" short="-f" long="--frequency" argument="RATIO" repeatable="last-wins" evidence-refs="source-full-help source-main"><help:summary>Multiply frequencies by RATIO.</help:summary><help:interaction>Combines with the semitone conversion from --pitch.</help:interaction></help:option>
+    </help:category>
+    <help:category xml:id="cat-maps" name="Dynamic maps">
+      <help:option xml:id="opt-timemap" short="-M" long="--timemap" argument="FILE" requires-refs="opt-time opt-tempo opt-duration" evidence-refs="source-full-help source-main"><help:summary>Read a source-frame to target-frame key map from FILE.</help:summary><help:note>An overall time option remains mandatory.</help:note><help:format-ref ref="map-files"/></help:option>
+      <help:option xml:id="opt-pitchmap" long="--pitchmap" argument="FILE" conflicts-with-refs="opt-freqmap" evidence-refs="source-full-help source-main"><help:summary>Read input-frame and semitone-offset pairs from FILE.</help:summary><help:effect>Forces real-time and high-consistency pitch modes.</help:effect><help:format-ref ref="map-files"/></help:option>
+      <help:option xml:id="opt-freqmap" long="--freqmap" argument="FILE" conflicts-with-refs="opt-pitchmap" evidence-refs="source-full-help source-main"><help:summary>Read input-frame and frequency-multiplier pairs from FILE.</help:summary><help:effect>Forces real-time and high-consistency pitch modes.</help:effect><help:format-ref ref="map-files"/></help:option>
+    </help:category>
+    <help:category xml:id="cat-engine" name="Engine and quality">
+      <help:option xml:id="opt-fast" short="-2" long="--fast" argument="none" conflicts-with-refs="opt-fine" evidence-refs="source-full-help source-main"><help:summary>Use the lower-CPU R2 (Faster) engine.</help:summary><help:note>Explicitly selects R2 even though this executable name defaults to R3.</help:note></help:option>
+      <help:option xml:id="opt-fine" short="-3" long="--fine" argument="none" conflicts-with-refs="opt-fast" evidence-refs="source-full-help source-main"><help:summary>Use the higher-quality, higher-CPU R3 (Finer) engine.</help:summary><help:default>Selected by the rubberband-r3.exe filename.</help:default></help:option>
+      <help:option xml:id="opt-formant" short="-F" long="--formant" argument="none" evidence-refs="source-full-help source-main"><help:summary>Preserve the formant envelope during pitch shifting.</help:summary><help:usage>Useful for retaining recognizable vocal or instrumental timbre.</help:usage></help:option>
+      <help:option xml:id="opt-centre-focus" long="--centre-focus" argument="none" evidence-refs="source-full-help source-main"><help:summary>Process two-channel audio together to preserve stereo center focus.</help:summary><help:note>Improves centered material and mono compatibility at a small per-channel quality cost.</help:note></help:option>
+      <help:option xml:id="opt-crisp" short="-c" long="--crisp" aliases="--crispness" argument="0..6" default="5" recommended-domain="0..6" evidence-refs="source-full-help source-main"><help:summary>Select an R2 crispness preset.</help:summary><help:warning>Out-of-range values are parsed but are not handled by the preset switch; use only 0 through 6.</help:warning><help:xref ref="crispness-model">See the complete preset table.</help:xref></help:option>
+      <help:option xml:id="opt-realtime" short="-R" long="--realtime" argument="none" evidence-refs="source-full-help source-main"><help:summary>Select the stretcher's real-time processing mode.</help:summary><help:note>The utility still processes a file, not a live stream; this skips the offline study pass.</help:note><help:effect>Implies no extra threads at library level.</help:effect></help:option>
+      <help:option xml:id="opt-no-threads" long="--no-threads" argument="none" conflicts-with-refs="opt-threads" evidence-refs="source-full-help source-main"><help:summary>Never use extra processing threads.</help:summary><help:note>Documented as primarily R2-specific.</help:note></help:option>
+      <help:option xml:id="opt-threads" long="--threads" argument="none" conflicts-with-refs="opt-no-threads" evidence-refs="source-full-help source-main"><help:summary>Assume multiple CPUs and always allow extra threads.</help:summary><help:note>Documented as primarily R2-specific.</help:note></help:option>
+      <help:option xml:id="opt-no-transients" long="--no-transients" argument="none" evidence-refs="source-full-help source-main"><help:summary>Use smooth transient handling instead of crisp phase resynchronization.</help:summary><help:note>R2 tuning; overridden by --crisp.</help:note></help:option>
+      <help:option xml:id="opt-bl-transients" long="--bl-transients" argument="none" evidence-refs="source-full-help source-main"><help:summary>Band-limit transient phase resynchronization to extreme frequencies.</help:summary><help:note>R2 tuning; overridden by --crisp.</help:note></help:option>
+      <help:option xml:id="opt-no-lamination" long="--no-lamination" argument="none" evidence-refs="source-full-help source-main"><help:summary>Disable phase lamination and use independent phase handling.</help:summary><help:note>R2 tuning; overridden by --crisp.</help:note></help:option>
+      <help:option xml:id="opt-smoothing" long="--smoothing" argument="none" evidence-refs="source-full-help source-main"><help:summary>Apply window presum and time-domain smoothing.</help:summary><help:note>R2 tuning.</help:note></help:option>
+      <help:option xml:id="opt-detector-perc" long="--detector-perc" argument="none" conflicts-with-refs="opt-detector-soft" evidence-refs="source-full-help source-main"><help:summary>Use the percussive transient detector.</help:summary><help:note>R2 tuning; overridden by --crisp.</help:note></help:option>
+      <help:option xml:id="opt-detector-soft" long="--detector-soft" argument="none" conflicts-with-refs="opt-detector-perc" evidence-refs="source-full-help source-main"><help:summary>Use the soft transient detector.</help:summary><help:note>R2 tuning; overridden by --crisp.</help:note></help:option>
+      <help:option xml:id="opt-window-long" long="--window-long" argument="none" conflicts-with-refs="opt-window-short" evidence-refs="source-full-help source-main"><help:summary>Use a longer processing window.</help:summary><help:note>R2 tuning; actual size can vary and --crisp overrides it.</help:note></help:option>
+      <help:option xml:id="opt-window-short" long="--window-short" argument="none" conflicts-with-refs="opt-window-long" evidence-refs="source-full-help source-main"><help:summary>Use a shorter processing window.</help:summary><help:note>With R3 this is an intermediate single-windowed draft mode; with R2 it is a tuning option.</help:note></help:option>
+      <help:option xml:id="opt-pitch-hq" long="--pitch-hq" argument="none" evidence-refs="source-full-help source-main"><help:summary>In real-time mode, use slower high-quality pitch shifting.</help:summary><help:interaction>A pitch or frequency map overrides this with high-consistency mode.</help:interaction></help:option>
+      <help:option xml:id="opt-ignore-clipping" long="--ignore-clipping" argument="none" evidence-refs="source-full-help source-main"><help:summary>Clamp clipped output samples instead of restarting at reduced gain.</help:summary><help:warning>This avoids a repeat pass but hard clipping can distort the result.</help:warning></help:option>
+      <help:option xml:id="opt-loose" short="-L" long="--loose" argument="none" evidence-refs="source-full-help source-main"><help:summary>Compatibility option; accepted and ignored.</help:summary><help:note>Loose mode was removed in v3.0; a note is printed.</help:note></help:option>
+      <help:option xml:id="opt-precise" short="-P" long="--precise" argument="none" evidence-refs="source-full-help source-main"><help:summary>Compatibility option; accepted and ignored.</help:summary><help:note>Precise behavior has been the default since v1.6; a note is printed.</help:note></help:option>
+      <help:option xml:id="opt-debug" short="-d" long="--debug" argument="0..3" default="0" recommended-domain="0..3" evidence-refs="source-full-help source-main"><help:summary>Select the library debug level.</help:summary><help:warning>Level 3 includes audible ticks in the output.</help:warning></help:option>
+    </help:category>
+    <help:category xml:id="cat-admin" name="Output and administration">
+      <help:option xml:id="opt-quiet" short="-q" long="--quiet" argument="none" evidence-refs="source-full-help source-main"><help:summary>Suppress progress and most informational output.</help:summary><help:note>Errors and some unconditional ratio messages may still be written to standard error.</help:note></help:option>
+      <help:option xml:id="opt-version" short="-V" long="--version" argument="none" terminates="true" evidence-refs="source-version source-main"><help:summary>Print 4.0.0 to standard error and exit successfully.</help:summary></help:option>
+      <help:option xml:id="opt-help" short="-h" long="--help" argument="none" terminates="true" evidence-refs="source-help source-main"><help:summary>Print normal help to standard error.</help:summary><help:exit-behavior>Returns status 2.</help:exit-behavior></help:option>
+      <help:option xml:id="opt-full-help" short="-H" long="--full-help" argument="none" terminates="true" evidence-refs="source-full-help source-main"><help:summary>Print all options and crispness presets to standard error.</help:summary><help:exit-behavior>Returns status 2.</help:exit-behavior></help:option>
+    </help:category>
+  </help:option-catalog>
+
+  <help:constraints xml:id="constraints">
+    <help:title>Constraints and precedence</help:title>
+    <help:rule xml:id="rule-two-files" kind="prerequisite" evidence-refs="source-main">Exactly two positional arguments—input then output—are required; otherwise help is printed and status 2 returned.</help:rule>
+    <help:rule xml:id="rule-transform" kind="prerequisite" option-refs="opt-time opt-tempo opt-duration opt-pitch opt-frequency opt-pitchmap opt-freqmap" evidence-refs="source-main">At least one transformation or dynamic pitch/frequency map must be supplied.</help:rule>
+    <help:rule xml:id="rule-positive-time" kind="range" option-refs="opt-time opt-tempo opt-duration" evidence-refs="source-main">The final time ratio must be greater than zero.<help:error-text>ERROR: Invalid time ratio</help:error-text></help:rule>
+    <help:rule xml:id="rule-duration-wins" kind="interaction" option-refs="opt-duration opt-time opt-tempo" evidence-refs="source-main">A nonzero --duration replaces the accumulated --time/--tempo ratio after the input duration is known.</help:rule>
+    <help:rule xml:id="rule-timemap-overall" kind="prerequisite" option-refs="opt-timemap opt-time opt-tempo opt-duration" evidence-refs="source-full-help">A time map requires an explicit overall time or duration option.</help:rule>
+    <help:rule xml:id="rule-map-exclusive" kind="conflict" option-refs="opt-pitchmap opt-freqmap" evidence-refs="source-main">Pitch and frequency maps are mutually exclusive.<help:error-text>ERROR: Please specify either pitch map or frequency map, not both</help:error-text></help:rule>
+    <help:rule xml:id="rule-map-mode" kind="implies" option-refs="opt-pitchmap opt-freqmap opt-realtime" evidence-refs="source-main">Either pitch map forces real-time processing and high-consistency pitch mode, overriding --pitch-hq.</help:rule>
+    <help:rule xml:id="rule-engine-conflict" kind="conflict" option-refs="opt-fast opt-fine" evidence-refs="source-main">If both engines are requested, both selections are cleared and the executable-name default is used—R3 for rubberband-r3.exe.</help:rule>
+    <help:rule xml:id="rule-crispness-precedence" kind="interaction" option-refs="opt-crisp opt-no-transients opt-bl-transients opt-no-lamination opt-detector-perc opt-detector-soft opt-window-long opt-window-short" evidence-refs="source-main">An explicit crispness preset overrides individual transient, detector, lamination, and window settings.</help:rule>
+    <help:rule xml:id="rule-debug-audio" kind="interaction" option-refs="opt-debug" evidence-refs="source-full-help">Debug level 3 can add audible ticks to output and is unsuitable for a production render.</help:rule>
+    <help:rule xml:id="rule-output-overwrite" kind="filesystem" evidence-refs="source-main">The output is opened for writing before processing; use a distinct path and protect irreplaceable files.</help:rule>
+  </help:constraints>
+
+  <help:workflows xml:id="workflows">
+    <help:title>Task recipes</help:title>
+    <help:workflow xml:id="workflow-slow" task="slow-without-pitch-change" option-refs="opt-time"><help:title>Make audio 25% longer</help:title><help:command><![CDATA[rubberband-r3.exe --time 1.25 input.wav slower.wav]]></help:command><help:outcome>Duration grows by about 25%; pitch is unchanged.</help:outcome></help:workflow>
+    <help:workflow xml:id="workflow-tempo" task="change-tempo" option-refs="opt-tempo"><help:title>Raise tempo by 20%</help:title><help:command><![CDATA[rubberband-r3.exe --tempo 1.2 input.wav faster.wav]]></help:command><help:outcome>Time ratio is 1/1.2, so output is about 83.33% of the input duration.</help:outcome></help:workflow>
+    <help:workflow xml:id="workflow-duration" task="fit-duration" option-refs="opt-duration"><help:title>Fit exactly thirty seconds</help:title><help:command><![CDATA[rubberband-r3.exe --duration 30 input.wav thirty-seconds.wav]]></help:command><help:note>Requires a reliable sample rate and frame count in the input header.</help:note></help:workflow>
+    <help:workflow xml:id="workflow-vocal" task="transpose-vocal" option-refs="opt-pitch opt-formant"><help:title>Transpose vocals while retaining timbre</help:title><help:command><![CDATA[rubberband-r3.exe --pitch -3 --formant vocal.wav vocal-down.wav]]></help:command></help:workflow>
+    <help:workflow xml:id="workflow-r2" task="fast-preview" option-refs="opt-fast opt-crisp"><help:title>Lower-CPU R2 preview</help:title><help:command><![CDATA[rubberband-r3.exe --fast --crisp 3 --time 1.1 input.wav preview.wav]]></help:command><help:note>Audition several crispness presets for source-dependent results.</help:note></help:workflow>
+    <help:workflow xml:id="workflow-map" task="dynamic-pitch" option-refs="opt-pitchmap"><help:title>Apply a pitch curve</help:title><help:precondition>Create pitch.map with lines such as <help:code>0 0</help:code>, <help:code>48000 2</help:code>, and <help:code>96000 0</help:code>.</help:precondition><help:command><![CDATA[rubberband-r3.exe --pitchmap pitch.map input.wav curved.wav]]></help:command><help:warning>Dynamic pitch maps use real-time mode, so total duration may not be exact.</help:warning></help:workflow>
+  </help:workflows>
+
+  <help:troubleshooting xml:id="troubleshooting">
+    <help:title>Troubleshooting</help:title>
+    <help:problem xml:id="problem-help-status" symptom="Help is displayed but the command reports failure/status 2" related-refs="opt-help opt-full-help rule-transform rule-two-files"><help:cause>Help and usage errors intentionally share exit status 2 in v4.0.0.</help:cause><help:resolution>Use --version for a status-0 probe; treat status 2 as expected only when help was requested deliberately.</help:resolution></help:problem>
+    <help:problem xml:id="problem-invalid-ratio" symptom="ERROR: Invalid time ratio" related-refs="opt-time opt-tempo rule-positive-time"><help:cause>The product of time/tempo ratios is zero or negative.</help:cause><help:resolution>Use positive numeric values; remember that --tempo 0 is converted to a neutral ratio of 1 by this parser, while --time 0 makes the aggregate invalid.</help:resolution></help:problem>
+    <help:problem xml:id="problem-duration-header" symptom="File lacks frame count in header, cannot use --duration" related-refs="opt-duration"><help:cause>Exact duration conversion needs the input header's sample rate and frame count.</help:cause><help:resolution>Convert the input to a well-formed seekable WAV/FLAC first, or use --time with a ratio calculated externally.</help:resolution></help:problem>
+    <help:problem xml:id="problem-map-malformed" symptom="Map file is malformed at line N" related-refs="opt-timemap opt-pitchmap opt-freqmap map-files"><help:cause>A nonblank line lacks a literal space separating its two values.</help:cause><help:resolution>Write exactly two numeric columns separated by spaces; remove comments and other text.</help:resolution></help:problem>
+    <help:problem xml:id="problem-map-conflict" symptom="Please specify either pitch map or frequency map, not both" related-refs="opt-pitchmap opt-freqmap rule-map-exclusive"><help:cause>Both dynamic pitch representations were requested.</help:cause><help:resolution>Choose semitone offsets (--pitchmap) or direct multipliers (--freqmap), not both.</help:resolution></help:problem>
+    <help:problem xml:id="problem-clipping" symptom="Processing restarts after clipping is detected" related-refs="opt-ignore-clipping stage-retry"><help:cause>The default protection detected a sample outside the representable range and reduced gain.</help:cause><help:resolution>Allow the restart for cleaner output, reduce source level before processing, or deliberately use --ignore-clipping to clamp instead.</help:resolution></help:problem>
+    <help:problem xml:id="problem-format" symptom="Unknown output file extension; input format is used" related-refs="processing-model"><help:cause>libsndfile did not recognize the requested extension.</help:cause><help:resolution>Choose an extension supported by the installed libsndfile, such as .wav or .flac, and verify the resulting container.</help:resolution></help:problem>
+    <help:problem xml:id="problem-options-ignored" symptom="R2 tuning switches appear to have no effect" related-refs="opt-fine opt-crisp rule-crispness-precedence"><help:cause>Most detailed tuning switches are R2-only, or an explicit crispness preset replaced them.</help:cause><help:resolution>Select --fast for R2 and avoid --crisp when setting its component switches manually.</help:resolution></help:problem>
+  </help:troubleshooting>
+
+  <help:glossary xml:id="glossary">
+    <help:title>Glossary</help:title>
+    <help:term xml:id="term-time-ratio"><help:name>Time ratio</help:name><help:definition>Output duration divided by input duration; values above one lengthen audio.</help:definition></help:term>
+    <help:term xml:id="term-tempo"><help:name>Tempo multiplier</help:name><help:definition>Playback-rate change expressed inversely to duration: tempo 2 corresponds to time ratio 0.5.</help:definition></help:term>
+    <help:term xml:id="term-semitone"><help:name>Semitone</help:name><help:definition>One twelfth of an octave; twelve semitones multiply frequency by two.</help:definition></help:term>
+    <help:term xml:id="term-frame"><help:name>Sample frame</help:name><help:definition>One sample instant across every channel; map positions count frames, not bytes or per-channel samples.</help:definition></help:term>
+    <help:term xml:id="term-r2"><help:name>R2 / Faster engine</help:name><help:definition>The lower-CPU legacy engine with detailed transient, detector, window, and crispness controls.</help:definition></help:term>
+    <help:term xml:id="term-r3"><help:name>R3 / Finer engine</help:name><help:definition>The newer, generally higher-quality and higher-CPU engine selected by default by rubberband-r3.exe.</help:definition></help:term>
+    <help:term xml:id="term-formant"><help:name>Formant</help:name><help:definition>A spectral-envelope resonance important to perceived vocal and instrumental timbre.</help:definition></help:term>
+    <help:term xml:id="term-realtime"><help:name>Real-time mode</help:name><help:definition>A one-pass stretcher configuration; this file utility does not become a live streaming command.</help:definition></help:term>
+  </help:glossary>
+
+  <help:relationship-graph xml:id="relationship-graph">
+    <help:title>Key relationships</help:title>
+    <help:relation type="overrides" from-ref="opt-duration" to-ref="opt-time"/>
+    <help:relation type="overrides" from-ref="opt-duration" to-ref="opt-tempo"/>
+    <help:relation type="conflicts" from-ref="opt-pitchmap" to-ref="opt-freqmap"/>
+    <help:relation type="implies" from-ref="opt-pitchmap" to-ref="opt-realtime"/>
+    <help:relation type="implies" from-ref="opt-freqmap" to-ref="opt-realtime"/>
+    <help:relation type="overrides" from-ref="opt-pitchmap" to-ref="opt-pitch-hq"/>
+    <help:relation type="conflicts" from-ref="opt-fast" to-ref="opt-fine"/>
+    <help:relation type="configures" from-ref="opt-crisp" to-ref="term-r2"/>
+    <help:relation type="bypasses" from-ref="opt-ignore-clipping" to-ref="stage-retry"/>
+  </help:relationship-graph>
+
+  <help:index xml:id="index">
+    <help:title>Index</help:title>
+    <help:index-entry term="clipping" refs="opt-ignore-clipping stage-retry problem-clipping"/>
+    <help:index-entry term="crispness" refs="opt-crisp crispness-model rule-crispness-precedence"/>
+    <help:index-entry term="duration" refs="opt-duration rule-duration-wins workflow-duration"/>
+    <help:index-entry term="engines" refs="opt-fast opt-fine term-r2 term-r3"/>
+    <help:index-entry term="formats" refs="processing-model problem-format"/>
+    <help:index-entry term="maps" refs="map-files opt-timemap opt-pitchmap opt-freqmap"/>
+    <help:index-entry term="pitch" refs="opt-pitch opt-frequency opt-pitchmap opt-freqmap"/>
+    <help:index-entry term="real-time" refs="opt-realtime rule-map-mode term-realtime"/>
+    <help:index-entry term="tempo" refs="opt-tempo term-tempo workflow-tempo"/>
+    <help:index-entry term="time stretching" refs="opt-time term-time-ratio workflow-slow"/>
+  </help:index>
+
+  <help:sources xml:id="sources">
+    <help:title>Evidence</help:title>
+    <help:source xml:id="source-version" kind="local-executable-command" authority="primary"><help:command><![CDATA[D:\app\rubberband\rubberband-r3.exe --version]]></help:command><help:observed>4.0.0; written to stderr; exit status 0.</help:observed></help:source>
+    <help:source xml:id="source-help" kind="local-executable-command" authority="primary"><help:command><![CDATA[D:\app\rubberband\rubberband-r3.exe --help]]></help:command><help:scope>Normal option help, map descriptions, engine defaults, administration options, and status behavior.</help:scope></help:source>
+    <help:source xml:id="source-full-help" kind="local-executable-command" authority="primary"><help:command><![CDATA[D:\app\rubberband\rubberband-r3.exe --full-help]]></help:command><help:scope>Complete accepted option list, R2-only markings, compatibility notes, and crispness presets.</help:scope></help:source>
+    <help:source xml:id="source-main" kind="source-file" authority="primary" xlink:href="https://raw.githubusercontent.com/breakfastquay/rubberband/v4.0.0/main/main.cpp"><help:title>Rubber Band v4.0.0 main/main.cpp</help:title><help:scope>Exact parser, precedence, map grammar, libsndfile I/O, processing passes, clipping behavior, and exit paths.</help:scope></help:source>
+    <help:source xml:id="source-readme" kind="source-tag" authority="primary" xlink:href="https://github.com/breakfastquay/rubberband/tree/v4.0.0"><help:title>Rubber Band v4.0.0 source tree</help:title><help:scope>Project overview, R2/R3 guidance, authorship, and command-line examples.</help:scope></help:source>
+    <help:source xml:id="source-license" kind="license" authority="primary" xlink:href="https://raw.githubusercontent.com/breakfastquay/rubberband/v4.0.0/COPYING"><help:title>Rubber Band GNU GPL license text</help:title></help:source>
+  </help:sources>
+</help:manual>

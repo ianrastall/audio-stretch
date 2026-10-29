@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "id": "rubberband", "version": "4.0.0",
+      "url": "https://breakfastquay.com/files/releases/rubberband-4.0.0-gpl-executable-windows.zip",
+      "sha256": "f2d47fc64dbb42f6cc62edf7933ac4fa89d8f0ef8b9cf97b6afc263a7fe05644",
+      "executables": ["rubberband-r3.exe"], "requiredFiles": ["rubberband-r3.exe", "sndfile.dll"]
+    },
+    {
+      "id": "ffmpeg", "version": "8.1",
+      "url": "https://github.com/GyanD/codexffmpeg/releases/download/8.1/ffmpeg-8.1-essentials_build.zip",
+      "sha256": "8748283d821613d930b0e7be685aaa9df4ca6f0ad4d0c42fd02622b3623463c6",
+      "executables": ["ffmpeg.exe", "ffprobe.exe"], "requiredFiles": ["ffmpeg.exe", "ffprobe.exe"]
+    }
+  ]
+}
